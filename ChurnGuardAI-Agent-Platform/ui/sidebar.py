@@ -85,12 +85,38 @@ def preprocess_csv(uploaded_file) -> pd.DataFrame:
 
 def render_sidebar():
     with st.sidebar:
-        st.header("⚙️ Setup")
+        # Professional sidebar header with Databricks-style logo
+        st.markdown("""
+        <div style="text-align: center; padding: 1.5rem 0 1rem 0;">
+            <div style="
+                width: 85px; 
+                height: 85px; 
+                margin: 0 auto 1rem auto;
+                background: linear-gradient(135deg, #FF3621 0%, #FF6B35 100%);
+                border-radius: 20px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 2.8rem;
+                box-shadow: 0 8px 20px rgba(255, 54, 33, 0.4);
+            ">
+                🛡️
+            </div>
+            <h2 style="color: white; margin: 0; font-weight: 700; font-size: 1.5rem;">ChurnGuard AI</h2>
+            <p style="color: rgba(255,255,255,0.75); font-size: 0.85rem; margin: 0.3rem 0 0 0; letter-spacing: 0.5px;">RETENTION PLATFORM</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("---")
+        
+        # API Configuration Section
+        st.markdown("### ⚙️ Configuration")
+        
         api_key = get_secret("GEMINI_API_KEY")
         if not api_key:
-            st.error("❌ GEMINI_API_KEY missing")
-            st.info("💡 Add to Streamlit secrets or .env file")
-            with st.expander("📋 How to configure"):
+            st.error("❌ API Key Missing")
+            st.info("💡 Configure your API key below")
+            with st.expander("📋 Setup Instructions", expanded=True):
                 st.markdown("""
                 **Streamlit Cloud:**
                 1. Go to app settings
@@ -101,86 +127,53 @@ def render_sidebar():
                 - Add to `.env` file or `.streamlit/secrets.toml`
                 """)
             return None
+        
         try:
             genai.configure(api_key=api_key)
             model = genai.GenerativeModel("gemini-2.5-flash")
-            st.success("✅ API Ready")
+            st.success("✅ API Connected")
+            st.caption("Model: Gemini 2.5 Flash")
         except Exception as e:
-            st.error(f"❌ {e}")
+            st.error(f"❌ Connection Failed")
+            st.caption(f"Error: {str(e)[:50]}...")
             return None
 
-        st.divider()
-        uploaded_file = st.file_uploader("📂 Upload CSV", type=["csv"])
-        if uploaded_file:
-            df = preprocess_csv(uploaded_file)
-            st.session_state.df = df
-            st.session_state.model = model
-            st.success(f"✅ {len(df)} rows loaded")
-            with st.expander("📋 Preview"):
-                st.dataframe(df.head(10), width='stretch')
-
-            # Build a stable source signature for this upload
-            try:
-                filename = getattr(uploaded_file, 'name', '') or ''
-            except Exception:
-                filename = ''
-            source_sig = f"{filename}:{len(df)}:{','.join(list(df.columns))}"
-
-            # Generate table name from filename (removes date stamps, uses org-based naming)
-            # Files with same org prefix will map to the same table
-            new_source = st.session_state.get("turso_source_sig") != source_sig
-            if new_source:
-                # Extract table name from filename (removes date stamps)
-                table_name = extract_table_name_from_filename(filename)
-                st.session_state.turso_table = table_name
-                st.session_state.turso_source_sig = source_sig
-                st.session_state.turso_synced = False
-                st.info(f"📦 Target table: `{st.session_state.turso_table}`")
+        st.markdown("---")
+        
+        # Data Status Section
+        st.markdown("### 📊 Data Status")
+        
+        if "df" in st.session_state and st.session_state.df is not None:
+            df = st.session_state.df
+            
+            # Display upload success with metrics
+            st.success("✅ Dataset Loaded")
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Rows", f"{len(df):,}", delta=None, delta_color="off")
+            with col2:
+                st.metric("Cols", len(df.columns), delta=None, delta_color="off")
+            
+            st.caption(f"📦 Table: `{st.session_state.get('turso_table', 'N/A')}`")
+            
+            if st.session_state.get("turso_synced"):
+                st.caption("✅ Synced to database")
             else:
-                # Reuse previous table for this upload session
-                st.info(f"📦 Target table: `{st.session_state.get('turso_table','uploaded_data_tbl')}`")
+                st.caption("⏳ Syncing...")
+        else:
+            st.info("📂 No data loaded")
+            st.caption("Upload CSV in the Data tab")
 
-            # One-time DB sync per upload
-            if not st.session_state.get("turso_synced"):
-                try:
-                    from db.turso import (
-                        get_turso_client,
-                        generate_create_table_sql,
-                        create_table_if_needed,
-                        batch_insert_dataframe,
-                        close_client,
-                    )
-                    client = get_turso_client()
-                except Exception as _imp_err:
-                    client = None
-                    st.warning(f"⚠️ DB helpers unavailable: {_imp_err}")
-                if client:
-                    try:
-                        with st.spinner("🔄 Syncing to Turso (one-time)..."):
-                            create_sql = generate_create_table_sql(df, st.session_state.turso_table, model)
-                            ok, err = create_table_if_needed(client, create_sql)
-                            if ok:
-                                inserted, ierr = batch_insert_dataframe(client, df, st.session_state.turso_table)
-                                if ierr:
-                                    st.warning(f"⚠️ Insert error after {inserted} rows: {ierr}")
-                                else:
-                                    st.info(f"🗃️ Synced {inserted} rows to `{st.session_state.turso_table}`")
-                                    st.session_state.turso_synced = True
-                            else:
-                                st.warning(f"⚠️ Table creation failed: {err}")
-                    finally:
-                        try:
-                            close_client(client)
-                        except Exception:
-                            pass
-                else:
-                    st.info("ℹ️ Skipping DB sync (client unavailable)")
-            else:
-                st.info("🗃️ Data already synced to Turso (skipping)")
-
-        st.divider()
+        st.markdown("---")
+        
+        # Actions Section
+        st.markdown("### 🔧 Quick Actions")
         if "messages" in st.session_state and st.session_state.messages:
-            if st.button("🗑️ Clear Chat"):
+            if st.button("🗑️ Clear Chat History", use_container_width=True):
                 st.session_state.messages = []
                 st.rerun()
+        
+        if "campaign_logs" in st.session_state and st.session_state.campaign_logs:
+            st.caption(f"📊 {len(st.session_state.campaign_logs)} campaigns logged")
+        
         return st.session_state.get("model", None)
