@@ -1,0 +1,38 @@
+# Core Framework
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+
+# HTTP Client
+httpx>=0.26.0
+aiohttp>=3.9.0
+
+# OpenAI
+openai>=1.12.0
+
+# Twilio
+twilio>=8.10.0
+
+# Database (optional)
+libsql-client>=0.2.0
+
+# Vector Database (optional)
+pinecone-client>=3.0.0
+
+# Utilities
+python-dotenv>=1.0.0
+python-multipart>=0.0.6
+
+# Logging
+structlog>=24.1.0
+
+# Testing
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
+pytest-cov>=4.1.0
+
+# Development
+black>=24.1.0
+isort>=5.13.0
+mypy>=1.8.0
