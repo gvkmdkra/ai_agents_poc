@@ -5,13 +5,19 @@ A voice AI agent that handles phone calls using Ultravox and Twilio.
 """
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
 from app.core.logging import setup_logging, get_logger
 from app.api.routes import calls, webhooks, health
+
+# Get the project root directory
+PROJECT_ROOT = Path(__file__).parent.parent
+FRONTEND_DIR = PROJECT_ROOT / "frontend"
 
 # Setup logging
 setup_logging()
@@ -102,13 +108,31 @@ app.include_router(health.router)
 app.include_router(calls.router, prefix="/api/v1")
 app.include_router(webhooks.router, prefix="/api/v1")
 
+# Mount static files for frontend
+if FRONTEND_DIR.exists():
+    app.mount("/static", StaticFiles(directory=FRONTEND_DIR / "static"), name="static")
 
-# Root endpoint
+
+# Root endpoint - serve frontend
 @app.get("/")
 async def root():
-    """Root endpoint - service information"""
+    """Serve the frontend UI"""
+    index_file = FRONTEND_DIR / "index.html"
+    if index_file.exists():
+        return FileResponse(index_file)
     return {
         "service": "Calling Agent",
+        "version": "1.0.0",
+        "docs": "/docs",
+        "health": "/health"
+    }
+
+
+@app.get("/api")
+async def api_info():
+    """API information endpoint"""
+    return {
+        "service": "Calling Agent API",
         "version": "1.0.0",
         "docs": "/docs",
         "health": "/health"

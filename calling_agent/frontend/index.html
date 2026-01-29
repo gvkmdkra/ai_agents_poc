@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Calling Agent | Voice AI Platform</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="static/css/styles.css">
+</head>
+<body>
+    <!-- Animated Background -->
+    <div class="bg-animation">
+        <div class="gradient-orb orb-1"></div>
+        <div class="gradient-orb orb-2"></div>
+        <div class="gradient-orb orb-3"></div>
+    </div>
+
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <div class="logo-icon">
+                    <i class="fas fa-phone-volume"></i>
+                </div>
+                <span class="logo-text">AI Calling Agent</span>
+            </div>
+            <div class="header-status">
+                <div class="status-indicator" id="serverStatus">
+                    <span class="status-dot"></span>
+                    <span class="status-text">Connecting...</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="container">
+            <!-- Hero Section -->
+            <section class="hero">
+                <h1 class="hero-title">
+                    <span class="gradient-text">Voice AI</span> Calling Platform
+                </h1>
+                <p class="hero-subtitle">
+                    Initiate AI-powered phone calls with natural voice conversations
+                </p>
+            </section>
+
+            <!-- Dashboard Grid -->
+            <div class="dashboard-grid">
+                <!-- Call Initiation Card -->
+                <div class="card card-primary">
+                    <div class="card-header">
+                        <div class="card-icon">
+                            <i class="fas fa-phone-alt"></i>
+                        </div>
+                        <h2 class="card-title">Initiate Call</h2>
+                    </div>
+                    <div class="card-body">
+                        <form id="callForm" class="call-form">
+                            <div class="form-group">
+                                <label for="phoneNumber">
+                                    <i class="fas fa-mobile-alt"></i>
+                                    Phone Number
+                                </label>
+                                <input
+                                    type="tel"
+                                    id="phoneNumber"
+                                    placeholder="+1 (555) 123-4567"
+                                    pattern="\+[0-9]{10,15}"
+                                    required
+                                >
+                                <span class="input-hint">E.164 format (e.g., +14155551234)</span>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="greeting">
+                                    <i class="fas fa-comment-dots"></i>
+                                    Greeting Message
+                                </label>
+                                <textarea
+                                    id="greeting"
+                                    rows="2"
+                                    placeholder="Hello! How can I help you today?"
+                                ></textarea>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="systemPrompt">
+                                    <i class="fas fa-robot"></i>
+                                    AI System Prompt
+                                </label>
+                                <textarea
+                                    id="systemPrompt"
+                                    rows="3"
+                                    placeholder="You are a helpful assistant..."
+                                ></textarea>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary btn-lg" id="callBtn">
+                                <i class="fas fa-phone"></i>
+                                <span>Start Call</span>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Active Call Card -->
+                <div class="card card-active-call" id="activeCallCard" style="display: none;">
+                    <div class="card-header">
+                        <div class="card-icon pulse">
+                            <i class="fas fa-phone-volume"></i>
+                        </div>
+                        <h2 class="card-title">Active Call</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="call-info">
+                            <div class="call-avatar">
+                                <i class="fas fa-user"></i>
+                            </div>
+                            <div class="call-details">
+                                <span class="call-number" id="activeCallNumber">+1 (555) 123-4567</span>
+                                <span class="call-status" id="activeCallStatus">
+                                    <span class="status-badge ringing">Ringing</span>
+                                </span>
+                            </div>
+                            <div class="call-timer" id="callTimer">00:00</div>
+                        </div>
+
+                        <div class="call-waveform">
+                            <div class="waveform-bar"></div>
+                            <div class="waveform-bar"></div>
+                            <div class="waveform-bar"></div>
+                            <div class="waveform-bar"></div>
+                            <div class="waveform-bar"></div>
+                            <div class="waveform-bar"></div>
+                            <div class="waveform-bar"></div>
+                            <div class="waveform-bar"></div>
+                        </div>
+
+                        <div class="call-actions">
+                            <button class="btn btn-danger" id="endCallBtn">
+                                <i class="fas fa-phone-slash"></i>
+                                End Call
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stats Cards -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-phone"></i>
+                        </div>
+                        <div class="stat-content">
+                            <span class="stat-value" id="totalCalls">0</span>
+                            <span class="stat-label">Total Calls</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon success">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div class="stat-content">
+                            <span class="stat-value" id="completedCalls">0</span>
+                            <span class="stat-label">Completed</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon warning">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div class="stat-content">
+                            <span class="stat-value" id="avgDuration">0:00</span>
+                            <span class="stat-label">Avg Duration</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon info">
+                            <i class="fas fa-headset"></i>
+                        </div>
+                        <div class="stat-content">
+                            <span class="stat-value" id="activeCalls">0</span>
+                            <span class="stat-label">Active Now</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Call History Card -->
+                <div class="card card-history">
+                    <div class="card-header">
+                        <div class="card-icon">
+                            <i class="fas fa-history"></i>
+                        </div>
+                        <h2 class="card-title">Call History</h2>
+                        <button class="btn btn-sm btn-outline" id="refreshHistory">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div class="call-history-list" id="callHistoryList">
+                            <div class="empty-state">
+                                <i class="fas fa-phone-slash"></i>
+                                <p>No calls yet</p>
+                                <span>Start your first call above</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Transcript Card -->
+                <div class="card card-transcript" id="transcriptCard" style="display: none;">
+                    <div class="card-header">
+                        <div class="card-icon">
+                            <i class="fas fa-file-alt"></i>
+                        </div>
+                        <h2 class="card-title">Live Transcript</h2>
+                        <span class="badge badge-live">LIVE</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="transcript-container" id="transcriptContainer">
+                            <!-- Transcript messages will be added here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Modal -->
+    <div class="modal" id="callDetailsModal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Call Details</h3>
+                <button class="modal-close" id="closeModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <!-- Call details will be populated here -->
+            </div>
+        </div>
+    </div>
+
+    <script src="static/js/app.js"></script>
+</body>
+</html>
