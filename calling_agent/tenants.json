@@ -1,0 +1,62 @@
+{
+  "tenants": [
+    {
+      "tenant_id": "default",
+      "tenant_name": "Default Tenant",
+      "company_name": "AI Calling Platform",
+      "agent_name": "Assistant",
+      "twilio_phone_number": null,
+      "ultravox_voice_id": null,
+      "voice": {
+        "voice_id": null,
+        "voice_name": "Mark",
+        "language": "en-US",
+        "speaking_rate": 1.0,
+        "pitch": 1.0
+      },
+      "prompts": {
+        "system_prompt": "You are a helpful AI assistant.",
+        "greeting_template": "Hello! This is {agent_name} from {company_name}. How can I help you today?",
+        "farewell_template": "Thank you for calling {company_name}. Have a great day!",
+        "fallback_response": "I'm sorry, I didn't understand that. Could you please repeat?"
+      },
+      "calls": {
+        "max_duration_seconds": 600,
+        "max_retries": 3,
+        "retry_delay_seconds": 60,
+        "record_calls": false,
+        "transcription_enabled": true,
+        "summary_enabled": true,
+        "allowed_hours_start": 9,
+        "allowed_hours_end": 21,
+        "timezone": "UTC"
+      },
+      "webhooks": {
+        "call_started_url": null,
+        "call_ended_url": null,
+        "transcript_url": null,
+        "summary_url": null,
+        "webhook_secret": null
+      },
+      "is_active": true,
+      "created_at": "2026-01-31T01:44:33.965871",
+      "updated_at": null,
+      "metadata": {}
+    }
+  ],
+  "api_keys": [
+    {
+      "api_key": "calling-agent-secret-key-2025",
+      "tenant_id": "default",
+      "name": "Default API Key",
+      "is_active": true,
+      "permissions": [
+        "calls:read",
+        "calls:write"
+      ],
+      "created_at": "2026-01-31T01:44:33.965883",
+      "expires_at": null,
+      "last_used_at": null
+    }
+  ]
+}

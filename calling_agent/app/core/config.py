@@ -67,6 +67,20 @@ class Settings(BaseSettings):
     call_records_file_path: str = Field(default="call_records.json")
     call_history_default_limit: int = Field(default=50)
 
+    # Recording and Transcription Directories
+    recordings_dir: str = Field(default="recordings")
+    transcripts_dir: str = Field(default="transcripts")
+    summaries_dir: str = Field(default="summaries")
+
+    # API Retry Configuration
+    api_max_retries: int = Field(default=3)
+    api_retry_delay: float = Field(default=2.0)
+    api_timeout: float = Field(default=30.0)
+
+    # Call Status Polling
+    call_status_poll_interval: float = Field(default=5.0)
+    call_max_wait_time: float = Field(default=600.0)
+
     # RAG Configuration
     rag_top_k_results: int = Field(default=5)
     rag_similarity_threshold: float = Field(default=0.7)

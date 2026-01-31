@@ -2,20 +2,41 @@
 
 from .call import (
     CallStatus,
+    CallDirection,
     CallRequest,
     CallResponse,
     CallRecord,
     CallTranscript,
     CallSummary,
-    WebhookEvent
+    WebhookEvent,
+    InboundCallRequest
+)
+
+from .tenant import (
+    TenantConfig,
+    TenantVoiceConfig,
+    TenantPromptConfig,
+    TenantCallConfig,
+    TenantWebhookConfig,
+    TenantAPIKey
 )
 
 __all__ = [
+    # Call models
     "CallStatus",
+    "CallDirection",
     "CallRequest",
     "CallResponse",
     "CallRecord",
     "CallTranscript",
     "CallSummary",
-    "WebhookEvent"
+    "WebhookEvent",
+    "InboundCallRequest",
+    # Tenant models
+    "TenantConfig",
+    "TenantVoiceConfig",
+    "TenantPromptConfig",
+    "TenantCallConfig",
+    "TenantWebhookConfig",
+    "TenantAPIKey"
 ]

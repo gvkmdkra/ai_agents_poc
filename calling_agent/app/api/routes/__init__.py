@@ -1,5 +1,5 @@
 """API Routes"""
 
-from . import calls, webhooks, health
+from . import calls, webhooks, health, tenants
 
-__all__ = ["calls", "webhooks", "health"]
+__all__ = ["calls", "webhooks", "health", "tenants"]

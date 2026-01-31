@@ -1,15 +1,18 @@
 """
 Ultravox Voice AI Service
 Handles voice AI interactions using the Ultravox API
+Includes retry logic for resilient API calls
 """
 
 import httpx
 import json
+import time
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 
 from app.core.config import settings
 from app.core.logging import get_logger
+from app.core.exceptions import UltravoxServiceError
 from app.models.call import CallStatus
 
 logger = get_logger(__name__)
@@ -27,10 +30,25 @@ class UltravoxService:
         self.temperature = settings.ultravox_temperature
         self.timeout = settings.ultravox_http_timeout
 
+        # Retry configuration
+        self.max_retries = settings.api_max_retries
+        self.retry_delay = settings.api_retry_delay
+
         self.headers = {
             "X-API-Key": self.api_key,
             "Content-Type": "application/json"
         }
+
+    def _debug_log(self, message: str, start_time: Optional[float] = None) -> float:
+        """Enhanced debug logging with timestamps and elapsed time"""
+        current_time = time.time()
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+        if start_time:
+            elapsed = current_time - start_time
+            logger.debug(f"[{timestamp}] [{elapsed:.3f}s elapsed] {message}")
+        else:
+            logger.debug(f"[{timestamp}] {message}")
+        return current_time
 
     async def create_call_session(
         self,
@@ -80,38 +98,71 @@ class UltravoxService:
                 metadata_str = metadata_str[:2000]
             payload["metadata"] = metadata_str
 
-        try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.post(
-                    self.api_endpoint,
-                    headers=self.headers,
-                    json=payload
+        start_time = self._debug_log(f"Starting Ultravox API call with retry support")
+        last_exception = None
+        current_delay = self.retry_delay
+
+        for attempt in range(1, self.max_retries + 1):
+            try:
+                attempt_start = self._debug_log(f"Ultravox API attempt {attempt}/{self.max_retries}")
+
+                async with httpx.AsyncClient(timeout=self.timeout) as client:
+                    response = await client.post(
+                        self.api_endpoint,
+                        headers=self.headers,
+                        json=payload
+                    )
+                    response.raise_for_status()
+                    result = response.json()
+
+                    self._debug_log(f"Ultravox API attempt {attempt} successful", attempt_start)
+                    logger.info(f"Ultravox session created: {result.get('callId', 'unknown')}")
+
+                    return {
+                        "success": True,
+                        "call_id": result.get("callId"),
+                        "join_url": result.get("joinUrl"),
+                        "created_at": datetime.utcnow().isoformat(),
+                        "raw_response": result
+                    }
+
+            except httpx.HTTPStatusError as e:
+                last_exception = e
+                self._debug_log(
+                    f"Attempt {attempt}/{self.max_retries} - HTTP Error: {e.response.status_code}",
+                    attempt_start
                 )
-                response.raise_for_status()
-                result = response.json()
+                logger.warning(f"Ultravox API error (attempt {attempt}): {e.response.text}")
 
-                logger.info(f"Ultravox session created: {result.get('callId', 'unknown')}")
-                return {
-                    "success": True,
-                    "call_id": result.get("callId"),
-                    "join_url": result.get("joinUrl"),
-                    "created_at": datetime.utcnow().isoformat(),
-                    "raw_response": result
-                }
+                if attempt < self.max_retries:
+                    import asyncio
+                    await asyncio.sleep(current_delay)
+                    current_delay *= 2  # Exponential backoff
 
-        except httpx.HTTPStatusError as e:
-            logger.error(f"Ultravox API error: {e.response.status_code} - {e.response.text}")
+            except Exception as e:
+                last_exception = e
+                self._debug_log(f"Attempt {attempt}/{self.max_retries} - Error: {str(e)}", attempt_start)
+                logger.warning(f"Ultravox request failed (attempt {attempt}): {str(e)}")
+
+                if attempt < self.max_retries:
+                    import asyncio
+                    await asyncio.sleep(current_delay)
+                    current_delay *= 2
+
+        # All retries exhausted
+        self._debug_log(f"All {self.max_retries} attempts failed", start_time)
+        logger.error(f"Failed to create Ultravox session after {self.max_retries} attempts")
+
+        if isinstance(last_exception, httpx.HTTPStatusError):
             return {
                 "success": False,
-                "error": f"API error: {e.response.status_code}",
-                "details": e.response.text
+                "error": f"API error: {last_exception.response.status_code}",
+                "details": last_exception.response.text
             }
-        except Exception as e:
-            logger.error(f"Failed to create Ultravox session: {str(e)}")
-            return {
-                "success": False,
-                "error": str(e)
-            }
+        return {
+            "success": False,
+            "error": str(last_exception) if last_exception else "Unknown error"
+        }
 
     async def get_call_status(self, call_id: str) -> Dict[str, Any]:
         """
