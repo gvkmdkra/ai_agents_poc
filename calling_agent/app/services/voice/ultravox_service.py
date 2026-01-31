@@ -78,25 +78,18 @@ class UltravoxService:
             "model": self.model_name,
             "voice": voice_id or self.voice_id or self.default_voice,
             "temperature": self.temperature,
-            "medium": {
-                "twilio": {}
-            }
         }
 
         if greeting_message:
-            payload["firstSpeaker"] = "FIRST_SPEAKER_AGENT"
-            payload["firstSpeakerMessage"] = greeting_message
+            # payload["firstSpeaker"] = "FIRST_SPEAKER_AGENT"
+            # payload["firstSpeakerMessage"] = greeting_message
+            pass
 
         if tools:
             payload["selectedTools"] = tools
 
         if metadata:
-            # Truncate metadata if too long
-            metadata_str = json.dumps(metadata)
-            if len(metadata_str) > 2000:
-                logger.warning("Metadata too long, truncating")
-                metadata_str = metadata_str[:2000]
-            payload["metadata"] = metadata_str
+            payload["metadata"] = {k: str(v) for k, v in metadata.items()}
 
         start_time = self._debug_log(f"Starting Ultravox API call with retry support")
         last_exception = None
@@ -133,6 +126,8 @@ class UltravoxService:
                     attempt_start
                 )
                 logger.warning(f"Ultravox API error (attempt {attempt}): {e.response.text}")
+                with open("debug_error.log", "w", encoding="utf-8") as f:
+                    f.write(e.response.text)
 
                 if attempt < self.max_retries:
                     import asyncio
