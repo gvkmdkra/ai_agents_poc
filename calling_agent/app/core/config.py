@@ -45,9 +45,15 @@ class Settings(BaseSettings):
     pinecone_index_name: Optional[str] = Field(default=None)
     pinecone_metric: str = Field(default="cosine")
 
+    # Database Configuration
+    database_type: str = Field(default="turso")  # "turso" or "postgres"
+
     # Turso Database Configuration
     turso_db_url: Optional[str] = Field(default=None)
     turso_db_auth_token: Optional[str] = Field(default=None)
+
+    # PostgreSQL Configuration (for future use)
+    postgres_url: Optional[str] = Field(default=None)
 
     # Application Settings
     debug: bool = Field(default=True)

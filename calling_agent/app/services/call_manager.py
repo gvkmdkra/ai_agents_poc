@@ -1,6 +1,7 @@
 """
 Call Manager Service
 Orchestrates Ultravox and Twilio services to manage calls
+Now with database support (Turso/PostgreSQL)
 """
 
 import uuid
@@ -27,28 +28,106 @@ from app.services.llm.openai_service import OpenAIService
 
 logger = get_logger(__name__)
 
+# Try to import database module
+try:
+    from app.db.repository import get_repository, CallRepository
+    from app.db.models import CallRecordDB, CallTranscriptDB, CallSummaryDB
+    DB_AVAILABLE = True
+except ImportError:
+    DB_AVAILABLE = False
+    logger.warning("Database module not available, using file-based storage")
+
 
 class CallManager:
     """
     Manages the lifecycle of calls including initiation, monitoring,
-    and transcription/summary generation
+    and transcription/summary generation.
+
+    Supports both database storage (Turso/PostgreSQL) and file-based storage.
     """
 
-    def __init__(self):
+    def __init__(self, use_database: bool = True):
+        """
+        Initialize CallManager.
+
+        Args:
+            use_database: Whether to use database storage (default: True)
+                         Falls back to file storage if database unavailable
+        """
         self.ultravox = UltravoxService()
         self.twilio = TwilioService()
         self.openai = OpenAIService()
 
-        # In-memory call storage (use database in production)
+        # In-memory cache for active calls
         self.active_calls: Dict[str, CallRecord] = {}
         self.call_history: List[CallRecord] = []
 
-        # File-based persistence for demo
-        self.records_file = Path(settings.call_records_file_path)
-        self._load_call_records()
+        # Database repository
+        self._db_repo: Optional[CallRepository] = None
+        self._db_initialized = False
+        self._use_database = use_database and DB_AVAILABLE and settings.turso_db_url
 
-    def _load_call_records(self):
-        """Load call records from file"""
+        # File-based persistence fallback
+        self.records_file = Path(settings.call_records_file_path)
+
+        # Load existing records
+        if not self._use_database:
+            self._load_call_records_from_file()
+
+    async def initialize_database(self) -> bool:
+        """
+        Initialize database connection.
+        Call this at application startup.
+
+        Returns:
+            True if database initialized successfully
+        """
+        if not self._use_database:
+            logger.info("Database not configured, using file-based storage")
+            return False
+
+        try:
+            self._db_repo = get_repository()
+            self._db_initialized = await self._db_repo.initialize()
+
+            if self._db_initialized:
+                logger.info("Database initialized successfully")
+                # Load active calls from database
+                await self._load_active_calls_from_db()
+            else:
+                logger.warning("Database initialization failed, falling back to file storage")
+                self._use_database = False
+                self._load_call_records_from_file()
+
+            return self._db_initialized
+        except Exception as e:
+            logger.error(f"Failed to initialize database: {e}")
+            self._use_database = False
+            self._load_call_records_from_file()
+            return False
+
+    async def close_database(self) -> None:
+        """Close database connection."""
+        if self._db_repo:
+            await self._db_repo.close()
+            self._db_repo = None
+            self._db_initialized = False
+
+    async def _load_active_calls_from_db(self):
+        """Load active calls from database into memory."""
+        if not self._db_repo:
+            return
+        try:
+            active = await self._db_repo.get_active_calls()
+            for db_record in active:
+                call_record = self._db_to_model(db_record)
+                self.active_calls[call_record.call_id] = call_record
+            logger.info(f"Loaded {len(self.active_calls)} active calls from database")
+        except Exception as e:
+            logger.error(f"Failed to load active calls from database: {e}")
+
+    def _load_call_records_from_file(self):
+        """Load call records from file (fallback)"""
         if self.records_file.exists():
             try:
                 with open(self.records_file, "r") as f:
@@ -56,12 +135,12 @@ class CallManager:
                     for record_data in data.get("history", []):
                         record = CallRecord(**record_data)
                         self.call_history.append(record)
-                logger.info(f"Loaded {len(self.call_history)} call records")
+                logger.info(f"Loaded {len(self.call_history)} call records from file")
             except Exception as e:
                 logger.warning(f"Failed to load call records: {e}")
 
-    def _save_call_records(self):
-        """Save call records to file"""
+    def _save_call_records_to_file(self):
+        """Save call records to file (fallback)"""
         try:
             data = {
                 "history": [
@@ -73,6 +152,60 @@ class CallManager:
                 json.dump(data, f, indent=2, default=str)
         except Exception as e:
             logger.warning(f"Failed to save call records: {e}")
+
+    def _model_to_db(self, record: CallRecord) -> CallRecordDB:
+        """Convert CallRecord model to database model."""
+        return CallRecordDB(
+            call_id=record.call_id,
+            status=record.status.value if isinstance(record.status, CallStatus) else record.status,
+            direction=record.direction.value if isinstance(record.direction, CallDirection) else record.direction,
+            phone_number=record.phone_number,
+            from_number=record.from_number,
+            ultravox_call_id=record.ultravox_call_id,
+            twilio_call_sid=record.twilio_call_sid,
+            system_prompt=record.system_prompt,
+            greeting_message=record.greeting_message,
+            metadata=record.metadata or {},
+            error_message=record.error_message,
+            duration_seconds=record.duration_seconds,
+            created_at=record.created_at,
+            started_at=record.started_at,
+            ended_at=record.ended_at,
+        )
+
+    def _db_to_model(self, db_record: CallRecordDB) -> CallRecord:
+        """Convert database model to CallRecord model."""
+        return CallRecord(
+            call_id=db_record.call_id,
+            status=CallStatus(db_record.status) if db_record.status else CallStatus.PENDING,
+            direction=CallDirection(db_record.direction) if db_record.direction else CallDirection.OUTBOUND,
+            phone_number=db_record.phone_number,
+            from_number=db_record.from_number,
+            ultravox_call_id=db_record.ultravox_call_id,
+            twilio_call_sid=db_record.twilio_call_sid,
+            system_prompt=db_record.system_prompt,
+            greeting_message=db_record.greeting_message,
+            metadata=db_record.metadata or {},
+            error_message=db_record.error_message,
+            duration_seconds=db_record.duration_seconds,
+            created_at=db_record.created_at,
+            started_at=db_record.started_at,
+            ended_at=db_record.ended_at,
+        )
+
+    async def _save_call_to_db(self, call_record: CallRecord):
+        """Save call record to database."""
+        if not self._db_repo or not self._db_initialized:
+            return
+        try:
+            db_record = self._model_to_db(call_record)
+            existing = await self._db_repo.get_call(call_record.call_id)
+            if existing:
+                await self._db_repo.update_call(call_record.call_id, db_record.model_dump(exclude={'id'}))
+            else:
+                await self._db_repo.create_call(db_record)
+        except Exception as e:
+            logger.error(f"Failed to save call to database: {e}")
 
     async def initiate_call(self, request: CallRequest) -> CallResponse:
         """
@@ -100,6 +233,7 @@ class CallManager:
         )
 
         self.active_calls[call_id] = call_record
+        await self._save_call_to_db(call_record)
 
         try:
             # Step 1: Create Ultravox session
@@ -116,7 +250,7 @@ class CallManager:
             if not ultravox_result.get("success"):
                 call_record.status = CallStatus.FAILED
                 call_record.error_message = ultravox_result.get("error", "Failed to create voice session")
-                self._move_to_history(call_id)
+                await self._move_to_history(call_id)
                 return CallResponse(
                     call_id=call_id,
                     status=CallStatus.FAILED,
@@ -129,9 +263,9 @@ class CallManager:
 
             call_record.ultravox_call_id = ultravox_call_id
             call_record.status = CallStatus.INITIATING
+            await self._save_call_to_db(call_record)
 
             # Step 2: Initiate Twilio call with Ultravox connection
-            # Create TwiML endpoint URL that will connect to Ultravox
             twiml_url = f"{settings.api_base_url}/api/v1/webhooks/twilio/connect/{call_id}"
 
             twilio_result = await self.twilio.initiate_call(
@@ -143,9 +277,8 @@ class CallManager:
             if not twilio_result.get("success"):
                 call_record.status = CallStatus.FAILED
                 call_record.error_message = twilio_result.get("error", "Failed to initiate call")
-                # Try to clean up Ultravox session
                 await self.ultravox.end_call(ultravox_call_id)
-                self._move_to_history(call_id)
+                await self._move_to_history(call_id)
                 return CallResponse(
                     call_id=call_id,
                     status=CallStatus.FAILED,
@@ -157,9 +290,8 @@ class CallManager:
             twilio_call_sid = twilio_result.get("call_sid")
             call_record.twilio_call_sid = twilio_call_sid
             call_record.status = CallStatus.RINGING
-
-            # Store the join URL for later use
             call_record.metadata["ultravox_join_url"] = join_url
+            await self._save_call_to_db(call_record)
 
             logger.info(f"Call {call_id} initiated successfully")
             return CallResponse(
@@ -175,7 +307,7 @@ class CallManager:
             logger.error(f"Error initiating call: {str(e)}")
             call_record.status = CallStatus.FAILED
             call_record.error_message = str(e)
-            self._move_to_history(call_id)
+            await self._move_to_history(call_id)
             return CallResponse(
                 call_id=call_id,
                 status=CallStatus.FAILED,
@@ -191,23 +323,10 @@ class CallManager:
         system_prompt: Optional[str] = None,
         greeting_message: Optional[str] = None
     ) -> Dict[str, Any]:
-        """
-        Handle an inbound call
-
-        Args:
-            twilio_call_sid: Twilio call SID
-            from_number: Caller's phone number
-            to_number: Called number
-            system_prompt: Optional custom system prompt
-            greeting_message: Optional greeting message
-
-        Returns:
-            TwiML and call info
-        """
+        """Handle an inbound call"""
         call_id = str(uuid.uuid4())
         logger.info(f"Handling inbound call {call_id} from {from_number}")
 
-        # Create call record
         call_record = CallRecord(
             call_id=call_id,
             status=CallStatus.IN_PROGRESS,
@@ -219,9 +338,9 @@ class CallManager:
         )
 
         self.active_calls[call_id] = call_record
+        await self._save_call_to_db(call_record)
 
         try:
-            # Create Ultravox session
             prompt = system_prompt or self.ultravox.get_default_system_prompt()
             greeting = greeting_message or "Hello! Thank you for calling. How can I help you today?"
 
@@ -243,8 +362,8 @@ class CallManager:
             join_url = ultravox_result.get("join_url")
             call_record.ultravox_call_id = ultravox_result.get("call_id")
             call_record.metadata["ultravox_join_url"] = join_url
+            await self._save_call_to_db(call_record)
 
-            # Generate TwiML to connect to Ultravox
             twiml = self.twilio.generate_connect_twiml(join_url)
 
             return {
@@ -263,20 +382,21 @@ class CallManager:
             }
 
     async def get_call_status(self, call_id: str) -> Optional[CallRecord]:
-        """
-        Get the current status of a call
-
-        Args:
-            call_id: Call identifier
-
-        Returns:
-            Call record if found
-        """
+        """Get the current status of a call"""
         # Check active calls first
         if call_id in self.active_calls:
             return self.active_calls[call_id]
 
-        # Check history
+        # Check database
+        if self._db_repo and self._db_initialized:
+            try:
+                db_record = await self._db_repo.get_call(call_id)
+                if db_record:
+                    return self._db_to_model(db_record)
+            except Exception as e:
+                logger.error(f"Failed to get call from database: {e}")
+
+        # Check in-memory history (fallback)
         for record in self.call_history:
             if record.call_id == call_id:
                 return record
@@ -289,14 +409,7 @@ class CallManager:
         status: CallStatus,
         error_message: Optional[str] = None
     ):
-        """
-        Update the status of a call
-
-        Args:
-            call_id: Call identifier
-            status: New status
-            error_message: Optional error message
-        """
+        """Update the status of a call"""
         if call_id not in self.active_calls:
             logger.warning(f"Call {call_id} not found in active calls")
             return
@@ -316,25 +429,17 @@ class CallManager:
                 duration = (call_record.ended_at - call_record.started_at).total_seconds()
                 call_record.duration_seconds = int(duration)
 
-            # Move to history
-            self._move_to_history(call_id)
+            await self._move_to_history(call_id)
 
-            # Generate summary if call completed
             if status == CallStatus.COMPLETED and call_record.transcript:
                 asyncio.create_task(self._generate_summary(call_record))
+        else:
+            await self._save_call_to_db(call_record)
 
         logger.info(f"Call {call_id} status updated to {status}")
 
     async def end_call(self, call_id: str) -> Dict[str, Any]:
-        """
-        End an active call
-
-        Args:
-            call_id: Call identifier
-
-        Returns:
-            Result of the operation
-        """
+        """End an active call"""
         if call_id not in self.active_calls:
             return {
                 "success": False,
@@ -343,11 +448,9 @@ class CallManager:
 
         call_record = self.active_calls[call_id]
 
-        # End Twilio call
         if call_record.twilio_call_sid:
             await self.twilio.end_call(call_record.twilio_call_sid)
 
-        # End Ultravox session
         if call_record.ultravox_call_id:
             await self.ultravox.end_call(call_record.ultravox_call_id)
 
@@ -365,15 +468,7 @@ class CallManager:
         text: str,
         confidence: Optional[float] = None
     ):
-        """
-        Add a transcript entry to a call
-
-        Args:
-            call_id: Call identifier
-            speaker: Speaker identifier
-            text: Transcribed text
-            confidence: Transcription confidence
-        """
+        """Add a transcript entry to a call"""
         if call_id not in self.active_calls:
             return
 
@@ -385,16 +480,21 @@ class CallManager:
 
         self.active_calls[call_id].transcript.append(entry)
 
+        # Save to database
+        if self._db_repo and self._db_initialized:
+            try:
+                db_entry = CallTranscriptDB(
+                    call_id=call_id,
+                    speaker=speaker,
+                    text=text,
+                    confidence=confidence
+                )
+                await self._db_repo.add_transcript_entry(db_entry)
+            except Exception as e:
+                logger.error(f"Failed to save transcript to database: {e}")
+
     def get_twiml_for_call(self, call_id: str) -> Optional[str]:
-        """
-        Get TwiML for connecting a call to Ultravox
-
-        Args:
-            call_id: Call identifier
-
-        Returns:
-            TwiML string or None
-        """
+        """Get TwiML for connecting a call to Ultravox"""
         if call_id not in self.active_calls:
             return None
 
@@ -411,29 +511,33 @@ class CallManager:
         limit: int = 50,
         status_filter: Optional[CallStatus] = None
     ) -> List[CallRecord]:
-        """
-        Get call history
+        """Get call history"""
+        # Use database if available
+        if self._db_repo and self._db_initialized:
+            try:
+                status_str = status_filter.value if status_filter else None
+                db_records = await self._db_repo.list_calls(limit=limit, status=status_str)
+                return [self._db_to_model(r) for r in db_records]
+            except Exception as e:
+                logger.error(f"Failed to get call history from database: {e}")
 
-        Args:
-            limit: Maximum number of records
-            status_filter: Optional status filter
-
-        Returns:
-            List of call records
-        """
+        # Fallback to in-memory history
         records = self.call_history.copy()
-
         if status_filter:
             records = [r for r in records if r.status == status_filter]
-
         return records[-limit:]
 
-    def _move_to_history(self, call_id: str):
+    async def _move_to_history(self, call_id: str):
         """Move a call from active to history"""
         if call_id in self.active_calls:
             record = self.active_calls.pop(call_id)
             self.call_history.append(record)
-            self._save_call_records()
+
+            # Save to database
+            await self._save_call_to_db(record)
+
+            # Also save to file as backup
+            self._save_call_records_to_file()
 
     async def _generate_summary(self, call_record: CallRecord):
         """Generate and store call summary"""
@@ -449,8 +553,6 @@ class CallManager:
             )
 
             if result.get("success"):
-                # Parse the summary response
-                import json
                 try:
                     summary_data = json.loads(result.get("content", "{}"))
                     call_record.summary = CallSummary(
@@ -460,7 +562,19 @@ class CallManager:
                         sentiment=summary_data.get("sentiment"),
                         action_items=summary_data.get("action_items", [])
                     )
-                    self._save_call_records()
+
+                    # Save summary to database
+                    if self._db_repo and self._db_initialized:
+                        db_summary = CallSummaryDB(
+                            call_id=call_record.call_id,
+                            summary=call_record.summary.summary,
+                            key_points=call_record.summary.key_points,
+                            sentiment=call_record.summary.sentiment,
+                            action_items=call_record.summary.action_items
+                        )
+                        await self._db_repo.save_summary(db_summary)
+
+                    self._save_call_records_to_file()
                 except json.JSONDecodeError:
                     call_record.summary = CallSummary(
                         call_id=call_record.call_id,
@@ -471,6 +585,49 @@ class CallManager:
 
         except Exception as e:
             logger.error(f"Failed to generate summary: {e}")
+
+    # ==================== Analytics Methods ====================
+
+    async def get_statistics(self) -> Dict[str, Any]:
+        """Get call statistics"""
+        if self._db_repo and self._db_initialized:
+            try:
+                return await self._db_repo.get_call_statistics()
+            except Exception as e:
+                logger.error(f"Failed to get statistics from database: {e}")
+
+        # Fallback calculation
+        total = len(self.call_history)
+        completed = sum(1 for c in self.call_history if c.status == CallStatus.COMPLETED)
+        failed = sum(1 for c in self.call_history if c.status == CallStatus.FAILED)
+        total_duration = sum(c.duration_seconds or 0 for c in self.call_history)
+
+        return {
+            "total_calls": total,
+            "completed_calls": completed,
+            "failed_calls": failed,
+            "active_calls": len(self.active_calls),
+            "total_duration_seconds": total_duration,
+            "average_duration_seconds": total_duration / completed if completed > 0 else 0,
+            "success_rate": (completed / total * 100) if total > 0 else 0,
+        }
+
+    async def get_sentiment_distribution(self) -> Dict[str, int]:
+        """Get sentiment distribution"""
+        if self._db_repo and self._db_initialized:
+            try:
+                return await self._db_repo.get_sentiment_distribution()
+            except Exception as e:
+                logger.error(f"Failed to get sentiment from database: {e}")
+
+        # Fallback calculation
+        distribution = {"positive": 0, "neutral": 0, "negative": 0}
+        for call in self.call_history:
+            if call.summary and call.summary.sentiment:
+                sentiment = call.summary.sentiment.lower()
+                if sentiment in distribution:
+                    distribution[sentiment] += 1
+        return distribution
 
 
 # Singleton instance
@@ -483,3 +640,10 @@ def get_call_manager() -> CallManager:
     if _call_manager is None:
         _call_manager = CallManager()
     return _call_manager
+
+
+async def initialize_call_manager() -> CallManager:
+    """Initialize CallManager with database connection"""
+    manager = get_call_manager()
+    await manager.initialize_database()
+    return manager

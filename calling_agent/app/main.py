@@ -42,24 +42,24 @@ async def lifespan(app: FastAPI):
     logger.info(f"Environment: {settings.environment}")
     logger.info(f"API Base URL: {settings.api_base_url}")
     logger.info(f"Twilio Phone: {settings.twilio_phone_number}")
+    logger.info(f"Database Type: {settings.database_type}")
     logger.info("=" * 60)
 
     # Initialize services
-    from app.services.call_manager import get_call_manager
+    from app.services.call_manager import initialize_call_manager
     from app.services.tenant_service import get_tenant_service
-    from app.services.database import get_database_service
-
-    # Initialize database
-    db = get_database_service()
-    logger.info("Database initialized")
 
     # Initialize tenant service
     tenant_service = get_tenant_service()
     logger.info(f"Loaded {len(tenant_service.tenants)} tenant(s)")
 
-    # Initialize call manager
-    manager = get_call_manager()
-    logger.info(f"Loaded {len(manager.call_history)} historical call records")
+    # Initialize call manager with database
+    manager = await initialize_call_manager()
+    if manager._db_initialized:
+        logger.info(f"Database ({settings.database_type}) initialized successfully")
+    else:
+        logger.info("Using file-based storage (database not configured)")
+    logger.info(f"Loaded {len(manager.active_calls)} active calls")
 
     logger.info("All services initialized successfully")
 
@@ -67,12 +67,17 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     logger.info("Shutting down Calling Agent")
+
     # Clean up any active calls
     for call_id in list(manager.active_calls.keys()):
         try:
             await manager.end_call(call_id)
         except Exception as e:
             logger.error(f"Error ending call {call_id}: {e}")
+
+    # Close database connection
+    await manager.close_database()
+    logger.info("Database connection closed")
 
     logger.info("Shutdown complete")
 
