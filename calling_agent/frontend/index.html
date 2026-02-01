@@ -3,252 +3,444 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Calling Agent | Voice AI Platform</title>
+    <title>VoiceAI | Intelligent Calling Platform</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="static/css/styles.css">
 </head>
 <body>
-    <!-- Animated Background -->
-    <div class="bg-animation">
-        <div class="gradient-orb orb-1"></div>
-        <div class="gradient-orb orb-2"></div>
-        <div class="gradient-orb orb-3"></div>
-    </div>
-
-    <!-- Header -->
-    <header class="header">
-        <div class="header-content">
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
             <div class="logo">
                 <div class="logo-icon">
-                    <i class="fas fa-phone-volume"></i>
+                    <i class="fas fa-bolt"></i>
                 </div>
-                <span class="logo-text">AI Calling Agent</span>
-            </div>
-            <div class="header-status">
-                <div class="status-indicator" id="serverStatus">
-                    <span class="status-dot"></span>
-                    <span class="status-text">Connecting...</span>
-                </div>
+                <span class="logo-text">VoiceAI</span>
             </div>
         </div>
-    </header>
+
+        <nav class="sidebar-nav">
+            <a href="#" class="nav-item active" data-section="dashboard">
+                <i class="fas fa-th-large"></i>
+                <span>Dashboard</span>
+            </a>
+            <a href="#" class="nav-item" data-section="new-call">
+                <i class="fas fa-phone-alt"></i>
+                <span>New Call</span>
+            </a>
+            <a href="#" class="nav-item" data-section="conversations">
+                <i class="fas fa-comments"></i>
+                <span>Conversations</span>
+                <span class="nav-badge" id="conversationCount">0</span>
+            </a>
+            <a href="#" class="nav-item" data-section="analytics">
+                <i class="fas fa-chart-bar"></i>
+                <span>Analytics</span>
+            </a>
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="connection-status" id="connectionStatus">
+                <span class="status-dot"></span>
+                <span class="status-text">Connecting...</span>
+            </div>
+        </div>
+    </aside>
 
     <!-- Main Content -->
     <main class="main-content">
-        <div class="container">
-            <!-- Hero Section -->
-            <section class="hero">
-                <h1 class="hero-title">
-                    <span class="gradient-text">Voice AI</span> Calling Platform
-                </h1>
-                <p class="hero-subtitle">
-                    Initiate AI-powered phone calls with natural voice conversations
-                </p>
-            </section>
+        <!-- Top Bar -->
+        <header class="top-bar">
+            <button class="menu-toggle" id="menuToggle">
+                <i class="fas fa-bars"></i>
+            </button>
+            <div class="page-title" id="pageTitle">Dashboard</div>
+            <div class="top-bar-actions">
+                <div class="active-calls-indicator" id="activeCallsIndicator" style="display: none;">
+                    <span class="pulse-dot"></span>
+                    <span id="activeCallCount">1</span> Active
+                </div>
+                <button class="btn btn-primary" id="quickCallBtn">
+                    <i class="fas fa-phone"></i>
+                    <span>New Call</span>
+                </button>
+            </div>
+        </header>
 
-            <!-- Dashboard Grid -->
+        <!-- Dashboard Section -->
+        <section class="content-section active" id="dashboard-section">
+            <!-- Stats Row -->
+            <div class="stats-row">
+                <div class="stat-card">
+                    <div class="stat-icon blue">
+                        <i class="fas fa-phone"></i>
+                    </div>
+                    <div class="stat-info">
+                        <span class="stat-value" id="statTotalCalls">0</span>
+                        <span class="stat-label">Total Calls</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon green">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <div class="stat-info">
+                        <span class="stat-value" id="statCompleted">0</span>
+                        <span class="stat-label">Completed</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon orange">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                    <div class="stat-info">
+                        <span class="stat-value" id="statAvgDuration">0:00</span>
+                        <span class="stat-label">Avg Duration</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon purple">
+                        <i class="fas fa-percent"></i>
+                    </div>
+                    <div class="stat-info">
+                        <span class="stat-value" id="statSuccessRate">0%</span>
+                        <span class="stat-label">Success Rate</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Dashboard Grid -->
             <div class="dashboard-grid">
-                <!-- Call Initiation Card -->
-                <div class="card card-primary">
+                <!-- Recent Conversations -->
+                <div class="card card-large">
                     <div class="card-header">
-                        <div class="card-icon">
-                            <i class="fas fa-phone-alt"></i>
+                        <h3><i class="fas fa-history"></i> Recent Calls</h3>
+                        <button class="btn btn-ghost btn-sm" id="refreshConversations">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div class="conversations-list" id="recentConversationsList">
+                            <div class="loading-state">
+                                <div class="spinner"></div>
+                            </div>
                         </div>
-                        <h2 class="card-title">Initiate Call</h2>
+                    </div>
+                </div>
+
+                <!-- Sentiment & Action Items -->
+                <div class="card-stack">
+                    <!-- Sentiment Analysis -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-smile"></i> Sentiment</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="sentiment-chart-container">
+                                <div class="sentiment-donut" id="sentimentDonut">
+                                    <svg viewBox="0 0 100 100">
+                                        <circle class="donut-ring" cx="50" cy="50" r="40"/>
+                                        <circle class="donut-segment positive" cx="50" cy="50" r="40" id="donutPositive" stroke-dasharray="0 251.2"/>
+                                        <circle class="donut-segment neutral" cx="50" cy="50" r="40" id="donutNeutral" stroke-dasharray="0 251.2"/>
+                                        <circle class="donut-segment negative" cx="50" cy="50" r="40" id="donutNegative" stroke-dasharray="0 251.2"/>
+                                    </svg>
+                                    <div class="donut-center">
+                                        <span class="donut-value" id="totalSentimentCalls">0</span>
+                                        <span class="donut-label">Calls</span>
+                                    </div>
+                                </div>
+                                <div class="sentiment-legend">
+                                    <div class="legend-item">
+                                        <span class="legend-color positive"></span>
+                                        <span class="legend-label">Positive</span>
+                                        <span class="legend-value" id="legendPositive">0</span>
+                                    </div>
+                                    <div class="legend-item">
+                                        <span class="legend-color neutral"></span>
+                                        <span class="legend-label">Neutral</span>
+                                        <span class="legend-value" id="legendNeutral">0</span>
+                                    </div>
+                                    <div class="legend-item">
+                                        <span class="legend-color negative"></span>
+                                        <span class="legend-label">Negative</span>
+                                        <span class="legend-value" id="legendNegative">0</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Action Items -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-tasks"></i> Action Items</h3>
+                            <span class="badge" id="actionItemsBadge">0</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="action-items-list" id="actionItemsList">
+                                <div class="empty-state small">
+                                    <i class="fas fa-clipboard-check"></i>
+                                    <p>No action items yet</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- New Call Section -->
+        <section class="content-section" id="new-call-section">
+            <div class="call-interface">
+                <!-- Call Form -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-phone-alt"></i> Start a New Call</h3>
                     </div>
                     <div class="card-body">
                         <form id="callForm" class="call-form">
                             <div class="form-group">
                                 <label for="phoneNumber">
-                                    <i class="fas fa-mobile-alt"></i>
+                                    <i class="fas fa-hashtag"></i>
                                     Phone Number
                                 </label>
-                                <input
-                                    type="tel"
-                                    id="phoneNumber"
-                                    placeholder="+1 (555) 123-4567"
-                                    pattern="\+[0-9]{10,15}"
-                                    required
-                                >
-                                <span class="input-hint">E.164 format (e.g., +14155551234)</span>
+                                <div class="input-with-icon">
+                                    <input type="tel" id="phoneNumber" placeholder="+1 555 123 4567" required>
+                                    <span class="input-icon"><i class="fas fa-globe"></i></span>
+                                </div>
+                                <span class="input-hint">E.164 format required (e.g., +14155551234)</span>
                             </div>
 
                             <div class="form-group">
                                 <label for="greeting">
-                                    <i class="fas fa-comment-dots"></i>
-                                    Greeting Message
+                                    <i class="fas fa-comment"></i>
+                                    Opening Message
                                 </label>
-                                <textarea
-                                    id="greeting"
-                                    rows="2"
-                                    placeholder="Hello! How can I help you today?"
-                                ></textarea>
+                                <textarea id="greeting" rows="2" placeholder="Hello! Thank you for your time. How can I help you today?"></textarea>
                             </div>
 
                             <div class="form-group">
                                 <label for="systemPrompt">
-                                    <i class="fas fa-robot"></i>
-                                    AI System Prompt
+                                    <i class="fas fa-brain"></i>
+                                    AI Instructions
                                 </label>
-                                <textarea
-                                    id="systemPrompt"
-                                    rows="3"
-                                    placeholder="You are a helpful assistant..."
-                                ></textarea>
+                                <textarea id="systemPrompt" rows="3" placeholder="You are a professional customer service agent..."></textarea>
                             </div>
 
-                            <button type="submit" class="btn btn-primary btn-lg" id="callBtn">
-                                <i class="fas fa-phone"></i>
-                                <span>Start Call</span>
-                            </button>
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn-primary btn-lg btn-block" id="initiateCallBtn">
+                                    <i class="fas fa-phone"></i>
+                                    Start Call
+                                </button>
+                            </div>
                         </form>
                     </div>
                 </div>
 
-                <!-- Active Call Card -->
-                <div class="card card-active-call" id="activeCallCard" style="display: none;">
-                    <div class="card-header">
-                        <div class="card-icon pulse">
-                            <i class="fas fa-phone-volume"></i>
+                <!-- Active Call Panel -->
+                <div class="card active-call-panel" id="activeCallPanel" style="display: none;">
+                    <div class="call-status-header">
+                        <div class="call-avatar-large">
+                            <i class="fas fa-user"></i>
                         </div>
-                        <h2 class="card-title">Active Call</h2>
-                    </div>
-                    <div class="card-body">
                         <div class="call-info">
-                            <div class="call-avatar">
-                                <i class="fas fa-user"></i>
-                            </div>
-                            <div class="call-details">
-                                <span class="call-number" id="activeCallNumber">+1 (555) 123-4567</span>
-                                <span class="call-status" id="activeCallStatus">
-                                    <span class="status-badge ringing">Ringing</span>
-                                </span>
-                            </div>
-                            <div class="call-timer" id="callTimer">00:00</div>
+                            <span class="call-number" id="activePhoneNumber">+1 555 123 4567</span>
+                            <span class="call-status-badge" id="activeCallStatusBadge">Connecting...</span>
                         </div>
+                        <div class="call-timer" id="activeCallTimer">00:00</div>
+                    </div>
 
-                        <div class="call-waveform">
-                            <div class="waveform-bar"></div>
-                            <div class="waveform-bar"></div>
-                            <div class="waveform-bar"></div>
-                            <div class="waveform-bar"></div>
-                            <div class="waveform-bar"></div>
-                            <div class="waveform-bar"></div>
-                            <div class="waveform-bar"></div>
-                            <div class="waveform-bar"></div>
+                    <div class="call-waveform">
+                        <div class="waveform-bars">
+                            <span></span><span></span><span></span><span></span><span></span>
+                            <span></span><span></span><span></span><span></span><span></span>
                         </div>
+                    </div>
 
-                        <div class="call-actions">
-                            <button class="btn btn-danger" id="endCallBtn">
-                                <i class="fas fa-phone-slash"></i>
-                                End Call
-                            </button>
+                    <div class="live-transcript" id="liveTranscript">
+                        <div class="transcript-placeholder">
+                            <i class="fas fa-microphone-alt"></i>
+                            <p>Waiting for conversation...</p>
                         </div>
                     </div>
-                </div>
 
-                <!-- Stats Cards -->
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-icon">
-                            <i class="fas fa-phone"></i>
-                        </div>
-                        <div class="stat-content">
-                            <span class="stat-value" id="totalCalls">0</span>
-                            <span class="stat-label">Total Calls</span>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon success">
-                            <i class="fas fa-check-circle"></i>
-                        </div>
-                        <div class="stat-content">
-                            <span class="stat-value" id="completedCalls">0</span>
-                            <span class="stat-label">Completed</span>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon warning">
-                            <i class="fas fa-clock"></i>
-                        </div>
-                        <div class="stat-content">
-                            <span class="stat-value" id="avgDuration">0:00</span>
-                            <span class="stat-label">Avg Duration</span>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon info">
-                            <i class="fas fa-headset"></i>
-                        </div>
-                        <div class="stat-content">
-                            <span class="stat-value" id="activeCalls">0</span>
-                            <span class="stat-label">Active Now</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Call History Card -->
-                <div class="card card-history">
-                    <div class="card-header">
-                        <div class="card-icon">
-                            <i class="fas fa-history"></i>
-                        </div>
-                        <h2 class="card-title">Call History</h2>
-                        <button class="btn btn-sm btn-outline" id="refreshHistory">
-                            <i class="fas fa-sync-alt"></i>
+                    <div class="call-controls">
+                        <button class="btn btn-danger btn-lg" id="endCallBtn">
+                            <i class="fas fa-phone-slash"></i>
+                            End Call
                         </button>
                     </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Conversations Section -->
+        <section class="content-section" id="conversations-section">
+            <div class="conversations-layout">
+                <!-- Conversations List Panel -->
+                <div class="conversations-panel">
+                    <div class="panel-header">
+                        <div class="search-box">
+                            <i class="fas fa-search"></i>
+                            <input type="text" id="searchConversations" placeholder="Search calls...">
+                        </div>
+                        <div class="filter-buttons">
+                            <button class="filter-btn active" data-filter="all">All</button>
+                            <button class="filter-btn" data-filter="completed">Completed</button>
+                            <button class="filter-btn" data-filter="failed">Failed</button>
+                        </div>
+                    </div>
+                    <div class="conversations-scroll" id="allConversationsList">
+                        <div class="loading-state">
+                            <div class="spinner"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Conversation Detail Panel -->
+                <div class="conversation-detail-panel" id="conversationDetailPanel">
+                    <div class="detail-placeholder">
+                        <i class="fas fa-comments"></i>
+                        <h3>Select a Conversation</h3>
+                        <p>Click on a call to view its details and AI analysis</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Analytics Section -->
+        <section class="content-section" id="analytics-section">
+            <div class="analytics-grid">
+                <!-- Call Performance -->
+                <div class="card card-wide">
+                    <div class="card-header">
+                        <h3><i class="fas fa-chart-bar"></i> Call Performance</h3>
+                    </div>
                     <div class="card-body">
-                        <div class="call-history-list" id="callHistoryList">
-                            <div class="empty-state">
-                                <i class="fas fa-phone-slash"></i>
-                                <p>No calls yet</p>
-                                <span>Start your first call above</span>
+                        <div class="performance-metrics">
+                            <div class="metric-item">
+                                <div class="metric-bar">
+                                    <div class="metric-fill completed" id="completedBar" style="width: 0%"></div>
+                                </div>
+                                <div class="metric-info">
+                                    <span class="metric-label">Completed</span>
+                                    <span class="metric-value" id="analyticsCompleted">0</span>
+                                </div>
+                            </div>
+                            <div class="metric-item">
+                                <div class="metric-bar">
+                                    <div class="metric-fill failed" id="failedBar" style="width: 0%"></div>
+                                </div>
+                                <div class="metric-info">
+                                    <span class="metric-label">Failed</span>
+                                    <span class="metric-value" id="analyticsFailed">0</span>
+                                </div>
+                            </div>
+                            <div class="metric-item">
+                                <div class="metric-bar">
+                                    <div class="metric-fill active" id="activeBar" style="width: 0%"></div>
+                                </div>
+                                <div class="metric-info">
+                                    <span class="metric-label">Active</span>
+                                    <span class="metric-value" id="analyticsActive">0</span>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Transcript Card -->
-                <div class="card card-transcript" id="transcriptCard" style="display: none;">
+                <!-- Key Insights -->
+                <div class="card">
                     <div class="card-header">
-                        <div class="card-icon">
-                            <i class="fas fa-file-alt"></i>
-                        </div>
-                        <h2 class="card-title">Live Transcript</h2>
-                        <span class="badge badge-live">LIVE</span>
+                        <h3><i class="fas fa-lightbulb"></i> Insights</h3>
                     </div>
                     <div class="card-body">
-                        <div class="transcript-container" id="transcriptContainer">
-                            <!-- Transcript messages will be added here -->
+                        <div class="insights-list" id="insightsList">
+                            <div class="insight-item">
+                                <i class="fas fa-clock"></i>
+                                <div>
+                                    <strong>Avg Duration</strong>
+                                    <span id="insightDuration">0 sec</span>
+                                </div>
+                            </div>
+                            <div class="insight-item">
+                                <i class="fas fa-chart-line"></i>
+                                <div>
+                                    <strong>Success Rate</strong>
+                                    <span id="insightSuccessRate">0%</span>
+                                </div>
+                            </div>
+                            <div class="insight-item">
+                                <i class="fas fa-phone"></i>
+                                <div>
+                                    <strong>Total Calls</strong>
+                                    <span id="insightTotal">0</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Activity Feed -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-stream"></i> Recent Activity</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="activity-feed" id="activityFeed">
+                            <div class="empty-state small">
+                                <i class="fas fa-rss"></i>
+                                <p>No recent activity</p>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
+        </section>
     </main>
 
-    <!-- Toast Container -->
-    <div class="toast-container" id="toastContainer"></div>
-
-    <!-- Modal -->
-    <div class="modal" id="callDetailsModal">
+    <!-- Quick Call Modal -->
+    <div class="modal" id="quickCallModal">
         <div class="modal-backdrop"></div>
-        <div class="modal-content">
+        <div class="modal-content modal-sm">
             <div class="modal-header">
-                <h3>Call Details</h3>
-                <button class="modal-close" id="closeModal">
+                <h3><i class="fas fa-phone"></i> Quick Call</h3>
+                <button class="modal-close" id="closeQuickCall">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
-            <div class="modal-body" id="modalBody">
-                <!-- Call details will be populated here -->
+            <div class="modal-body">
+                <div class="form-group">
+                    <input type="tel" id="quickPhoneNumber" placeholder="Enter phone number..." class="input-lg">
+                </div>
+                <button class="btn btn-primary btn-block" id="startQuickCall">
+                    <i class="fas fa-phone"></i> Start Call
+                </button>
             </div>
         </div>
     </div>
+
+    <!-- Conversation Detail Modal -->
+    <div class="modal" id="conversationModal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content modal-lg">
+            <div class="modal-header">
+                <h3><i class="fas fa-file-alt"></i> Call Details</h3>
+                <button class="modal-close" id="closeConversationModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="conversationModalBody">
+                <!-- Content loaded dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
 
     <script src="static/js/app.js"></script>
 </body>

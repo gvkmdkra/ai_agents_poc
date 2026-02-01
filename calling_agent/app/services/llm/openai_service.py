@@ -273,6 +273,106 @@ Return your response as JSON with keys: intent, confidence (0-1), entities (dict
             max_tokens=200
         )
 
+    async def generate_call_analysis(
+        self,
+        transcript: List[Dict[str, str]],
+        call_metadata: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        Generate comprehensive analysis of a call including summary, key topics,
+        sentiment, action items, and conversation highlights.
+
+        Args:
+            transcript: List of transcript entries
+            call_metadata: Optional call metadata
+
+        Returns:
+            Analysis response with structured data
+        """
+        logger.info("Generating comprehensive call analysis")
+
+        # Format transcript for the prompt
+        formatted_transcript = "\n".join([
+            f"{entry.get('speaker', 'Unknown').upper()}: {entry.get('text', '')}"
+            for entry in transcript
+        ])
+
+        system_prompt = """You are an expert conversation analyst. Analyze the provided call transcript and generate a comprehensive analysis.
+
+You MUST respond with valid JSON in this exact format:
+{
+    "summary": "A 2-3 sentence summary of the entire conversation",
+    "key_topics": ["topic1", "topic2", "topic3"],
+    "sentiment": "positive" | "neutral" | "negative",
+    "action_items": ["action item 1", "action item 2"],
+    "conversation_highlights": [
+        {"speaker": "agent|user", "text": "important quote", "significance": "why this is notable"}
+    ],
+    "customer_intent": "What the customer wanted",
+    "resolution_status": "resolved" | "pending" | "escalated" | "unknown",
+    "follow_up_required": true | false,
+    "key_entities": {
+        "names": [],
+        "dates": [],
+        "products": [],
+        "issues": []
+    }
+}"""
+
+        user_content = f"Analyze this call transcript:\n\n{formatted_transcript}"
+
+        if call_metadata:
+            user_content += f"\n\nCall Metadata:\n- Phone: {call_metadata.get('phone_number', 'Unknown')}\n- Duration: {call_metadata.get('duration_seconds', 0)} seconds\n- Direction: {call_metadata.get('direction', 'Unknown')}"
+
+        try:
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_content}
+                ],
+                temperature=0.3,
+                max_tokens=1500
+            )
+
+            content = response.choices[0].message.content
+
+            # Parse JSON response
+            import json
+            try:
+                # Try to extract JSON from the response
+                if "```json" in content:
+                    content = content.split("```json")[1].split("```")[0]
+                elif "```" in content:
+                    content = content.split("```")[1].split("```")[0]
+
+                analysis = json.loads(content.strip())
+                return {
+                    "success": True,
+                    "analysis": analysis
+                }
+            except json.JSONDecodeError:
+                # If JSON parsing fails, return raw content
+                return {
+                    "success": True,
+                    "analysis": {
+                        "summary": content,
+                        "key_topics": [],
+                        "sentiment": "neutral",
+                        "action_items": [],
+                        "conversation_highlights": [],
+                        "raw_response": True
+                    }
+                }
+
+        except Exception as e:
+            logger.error(f"Failed to generate call analysis: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e),
+                "analysis": {}
+            }
+
     async def generate_response(
         self,
         user_input: str,

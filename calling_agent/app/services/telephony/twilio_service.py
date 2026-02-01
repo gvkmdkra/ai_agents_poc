@@ -92,7 +92,7 @@ class TwilioService:
                 "call_sid": call.sid,
                 "status": call.status,
                 "to": call.to,
-                "from": call.from_,
+                "from": getattr(call, 'from_', None) or getattr(call, 'from_formatted', None) or self.phone_number,
                 "direction": call.direction,
                 "created_at": datetime.utcnow().isoformat()
             }
@@ -128,7 +128,7 @@ class TwilioService:
                 "call_sid": call.sid,
                 "status": call.status,
                 "to": call.to,
-                "from": call.from_,
+                "from": getattr(call, 'from_', None) or getattr(call, 'from_formatted', None),
                 "direction": call.direction,
                 "duration": call.duration,
                 "start_time": str(call.start_time) if call.start_time else None,
@@ -250,7 +250,7 @@ class TwilioService:
                     "call_sid": call.sid,
                     "status": call.status,
                     "to": call.to,
-                    "from": call.from_,
+                    "from": getattr(call, 'from_', None) or getattr(call, 'from_formatted', None),
                     "direction": call.direction,
                     "duration": call.duration,
                     "start_time": str(call.start_time) if call.start_time else None

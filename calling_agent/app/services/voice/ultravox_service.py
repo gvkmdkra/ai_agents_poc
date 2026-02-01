@@ -85,18 +85,21 @@ class UltravoxService:
 
         if greeting_message:
             payload["firstSpeaker"] = "FIRST_SPEAKER_AGENT"
-            payload["firstSpeakerMessage"] = greeting_message
+            payload["firstSpeakerSettings"] = {
+                "agent": {
+                    "uninterruptible": True,
+                    "text": greeting_message
+                }
+            }
 
         if tools:
             payload["selectedTools"] = tools
 
         if metadata:
-            # Truncate metadata if too long
-            metadata_str = json.dumps(metadata)
-            if len(metadata_str) > 2000:
-                logger.warning("Metadata too long, truncating")
-                metadata_str = metadata_str[:2000]
-            payload["metadata"] = metadata_str
+            # Ultravox expects metadata as a dict with string values
+            # Convert all values to strings to ensure compatibility
+            string_metadata = {str(k): str(v) for k, v in metadata.items()}
+            payload["metadata"] = string_metadata
 
         start_time = self._debug_log(f"Starting Ultravox API call with retry support")
         last_exception = None
