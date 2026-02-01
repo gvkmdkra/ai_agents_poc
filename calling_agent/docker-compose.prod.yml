@@ -1,5 +1,3 @@
-version: '3.8'
-
 # Production docker-compose with Nginx and SSL
 services:
   calling-agent:

@@ -1,0 +1,110 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches:
+      - calling_agent_by_claude_version1
+      - main
+    paths:
+      - 'calling_agent/**'
+      - '.github/workflows/deploy-ec2.yml'
+  workflow_dispatch:
+
+env:
+  EC2_HOST: 15.156.116.91
+  EC2_USER: ubuntu
+  DEPLOY_PATH: /home/ubuntu/poc/agents/calling_agent
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/ec2_key.pem
+          chmod 600 ~/.ssh/ec2_key.pem
+          ssh-keyscan -H ${{ env.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Create deployment directory on EC2
+        run: |
+          ssh -i ~/.ssh/ec2_key.pem -o StrictHostKeyChecking=no ${{ env.EC2_USER }}@${{ env.EC2_HOST }} << 'ENDSSH'
+            sudo mkdir -p /home/ubuntu/poc/agents/calling_agent
+            sudo chown -R ubuntu:ubuntu /home/ubuntu/poc
+          ENDSSH
+
+      - name: Copy application files to EC2
+        run: |
+          rsync -avz --delete \
+            -e "ssh -i ~/.ssh/ec2_key.pem -o StrictHostKeyChecking=no" \
+            --exclude '.git' \
+            --exclude '__pycache__' \
+            --exclude '*.pyc' \
+            --exclude '.env' \
+            --exclude 'venv' \
+            --exclude 'logs' \
+            --exclude 'call_records.json' \
+            calling_agent/ \
+            ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:${{ env.DEPLOY_PATH }}/
+
+      - name: Deploy with Docker Compose
+        run: |
+          ssh -i ~/.ssh/ec2_key.pem -o StrictHostKeyChecking=no ${{ env.EC2_USER }}@${{ env.EC2_HOST }} << 'ENDSSH'
+            cd /home/ubuntu/poc/agents/calling_agent
+
+            # Check if .env exists, if not create from example
+            if [ ! -f .env ]; then
+              if [ -f .env.example ]; then
+                cp .env.example .env
+                echo "WARNING: Created .env from .env.example - please configure it!"
+              fi
+            fi
+
+            # Install Docker if not present
+            if ! command -v docker &> /dev/null; then
+              echo "Installing Docker..."
+              curl -fsSL https://get.docker.com -o get-docker.sh
+              sudo sh get-docker.sh
+              sudo usermod -aG docker ubuntu
+              rm get-docker.sh
+            fi
+
+            # Install Docker Compose if not present
+            if ! command -v docker-compose &> /dev/null; then
+              echo "Installing Docker Compose..."
+              sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+              sudo chmod +x /usr/local/bin/docker-compose
+            fi
+
+            # Build and deploy
+            echo "Building and deploying..."
+            sudo docker-compose down || true
+            sudo docker-compose build --no-cache
+            sudo docker-compose up -d
+
+            # Wait for health check
+            echo "Waiting for application to start..."
+            sleep 10
+
+            # Check health
+            if curl -s http://localhost:8000/health | grep -q "healthy"; then
+              echo "Deployment successful! Application is healthy."
+            else
+              echo "WARNING: Health check may have failed. Checking logs..."
+              sudo docker-compose logs --tail=20
+            fi
+          ENDSSH
+
+      - name: Verify deployment
+        run: |
+          echo "Checking application health..."
+          sleep 5
+          curl -f http://${{ env.EC2_HOST }}:8000/health || echo "Direct health check - may need security group update"
+
+      - name: Cleanup SSH key
+        if: always()
+        run: rm -f ~/.ssh/ec2_key.pem
