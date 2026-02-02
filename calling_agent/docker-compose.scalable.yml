@@ -1,0 +1,100 @@
+# High-Performance Scalable Docker Compose
+# Optimized for 1000s of concurrent calls on single EC2 instance
+
+services:
+  # Redis for caching, rate limiting, and call queue
+  redis:
+    image: redis:7-alpine
+    container_name: calling-agent-redis
+    restart: always
+    command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru --appendonly yes
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - calling-agent-network
+
+  # Main API with multiple Uvicorn workers
+  calling-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.scalable
+    container_name: calling-agent
+    restart: always
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - ENVIRONMENT=production
+      - DEBUG=false
+      - REDIS_URL=redis://redis:6379/0
+      - WORKERS=4
+      - MAX_CONNECTIONS=1000
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+    deploy:
+      resources:
+        limits:
+          cpus: '3.5'
+          memory: 3G
+        reservations:
+          cpus: '2'
+          memory: 2G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+    networks:
+      - calling-agent-network
+
+  # Celery worker for async call processing
+  celery-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.scalable
+    container_name: calling-agent-celery
+    restart: always
+    command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=8 --pool=gevent
+    env_file:
+      - .env
+    environment:
+      - ENVIRONMENT=production
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    networks:
+      - calling-agent-network
+
+volumes:
+  redis-data:
+
+networks:
+  calling-agent-network:
+    name: calling-agent-network
+    driver: bridge
