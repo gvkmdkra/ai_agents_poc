@@ -43,11 +43,11 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '3.5'
-          memory: 3G
+          cpus: '1.5'
+          memory: 1.5G
         reservations:
-          cpus: '2'
-          memory: 2G
+          cpus: '0.5'
+          memory: 512M
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -69,7 +69,7 @@ services:
       dockerfile: Dockerfile.scalable
     container_name: calling-agent-celery
     restart: always
-    command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=8 --pool=gevent
+    command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=4 --pool=gevent
     env_file:
       - .env
     environment:
@@ -83,11 +83,11 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '1.5'
-          memory: 1G
-        reservations:
           cpus: '0.5'
           memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
     networks:
       - calling-agent-network
 
