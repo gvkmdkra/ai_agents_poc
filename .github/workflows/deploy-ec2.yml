@@ -80,22 +80,28 @@ jobs:
               sudo chmod +x /usr/local/bin/docker-compose
             fi
 
-            # Build and deploy
-            echo "Building and deploying..."
-            sudo docker-compose down || true
-            sudo docker-compose build --no-cache
-            sudo docker-compose up -d
+            # Build and deploy using scalable configuration
+            echo "Building and deploying with scalable config..."
+            sudo docker-compose -f docker-compose.scalable.yml down || true
+            sudo docker-compose -f docker-compose.scalable.yml build --no-cache
+            sudo docker-compose -f docker-compose.scalable.yml up -d
 
             # Wait for health check
             echo "Waiting for application to start..."
-            sleep 10
+            sleep 30
 
             # Check health
             if curl -s http://localhost:8000/health | grep -q "healthy"; then
               echo "Deployment successful! Application is healthy."
             else
               echo "WARNING: Health check may have failed. Checking logs..."
-              sudo docker-compose logs --tail=20
+              sudo docker-compose -f docker-compose.scalable.yml logs --tail=50
+            fi
+
+            # Add SSL certificate for api.reapdat.com if not exists
+            if ! sudo certbot certificates 2>/dev/null | grep -q "api.reapdat.com"; then
+              echo "Adding SSL certificate for api.reapdat.com..."
+              sudo certbot --nginx -d reapdat.com -d api.reapdat.com --non-interactive --agree-tos --email admin@reapdat.com || echo "Certbot failed - may need manual setup"
             fi
           ENDSSH
 
