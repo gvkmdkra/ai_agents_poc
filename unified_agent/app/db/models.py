@@ -179,8 +179,8 @@ class Call(Base):
     ended_at = Column(DateTime, nullable=True)
     duration_seconds = Column(Integer, nullable=True)
 
-    # Metadata
-    metadata = Column(JSON, nullable=True)
+    # Extra data
+    extra_data = Column(JSON, nullable=True)
     error_message = Column(Text, nullable=True)
 
     # Timestamps
@@ -220,8 +220,8 @@ class Conversation(Base):
     is_active = Column(Boolean, default=True)
     message_count = Column(Integer, default=0)
 
-    # Metadata
-    metadata = Column(JSON, nullable=True)
+    # Extra data
+    extra_data = Column(JSON, nullable=True)
     source = Column(String(50), default="widget")  # widget, api, voice
 
     # Timestamps
@@ -303,7 +303,7 @@ class Lead(Base):
     # Additional info
     message = Column(Text, nullable=True)
     notes = Column(Text, nullable=True)
-    metadata = Column(JSON, nullable=True)
+    extra_data = Column(JSON, nullable=True)
 
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)

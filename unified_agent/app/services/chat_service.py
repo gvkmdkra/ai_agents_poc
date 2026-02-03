@@ -348,7 +348,7 @@ class ChatManager:
             tenant_id=tenant_id,
             user_name=user_name,
             user_id=userid,
-            metadata={"userid": userid} if userid else {}
+            extra_data={"userid": userid} if userid else {}
         )
         self.db.add(conversation)
         self.db.commit()
