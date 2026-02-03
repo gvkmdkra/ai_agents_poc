@@ -79,7 +79,7 @@ jobs:
 
       - name: Configure Nginx
         run: |
-          ssh -i ~/.ssh/ec2_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "sudo cp /home/ubuntu/poc/agents/unified_agent/nginx/unified-agent.conf /etc/nginx/sites-available/unified-agent && sudo ln -sf /etc/nginx/sites-available/unified-agent /etc/nginx/sites-enabled/ && sudo nginx -t && sudo systemctl reload nginx"
+          ssh -i ~/.ssh/ec2_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "sudo rm -f /etc/nginx/sites-enabled/default && sudo cp /home/ubuntu/poc/agents/unified_agent/nginx/unified-agent.conf /etc/nginx/sites-available/unified-agent && sudo ln -sf /etc/nginx/sites-available/unified-agent /etc/nginx/sites-enabled/ && sudo nginx -t && sudo systemctl reload nginx"
 
       - name: Diagnostic - Check containers
         run: |
