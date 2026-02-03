@@ -12,6 +12,7 @@ from .base import (
 )
 from .models import (
     Base,
+    User,
     Tenant,
     APIKey,
     Call,
@@ -37,6 +38,7 @@ __all__ = [
     "DatabaseManager",
     # Models
     "Base",
+    "User",
     "Tenant",
     "APIKey",
     "Call",

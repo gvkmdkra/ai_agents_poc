@@ -25,7 +25,7 @@ from app.core.exceptions import (
     AuthenticationError,
     RateLimitError
 )
-from app.api.routes import calls, chat, webhooks, health, tenants, websocket
+from app.api.routes import calls, chat, webhooks, health, tenants, websocket, auth
 from app.db import init_database, close_database
 
 # Get the project root directory
@@ -202,6 +202,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 # Include routers
 app.include_router(health.router, tags=["Health"])
+app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
 app.include_router(calls.router, prefix="/api/v1/calls", tags=["Voice Calling"])
 app.include_router(chat.router, prefix="/api/v1/chat", tags=["Chat"])
 app.include_router(webhooks.router, prefix="/api/v1/webhooks", tags=["Webhooks"])

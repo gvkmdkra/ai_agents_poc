@@ -2,7 +2,7 @@
 API Routes Module
 """
 
-from . import calls, chat, webhooks, tenants, health, websocket
+from . import calls, chat, webhooks, tenants, health, websocket, auth
 
 __all__ = [
     "calls",
@@ -10,5 +10,6 @@ __all__ = [
     "webhooks",
     "tenants",
     "health",
-    "websocket"
+    "websocket",
+    "auth"
 ]

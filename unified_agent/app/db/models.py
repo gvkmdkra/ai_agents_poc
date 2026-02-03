@@ -63,6 +63,31 @@ class QueryMethod(enum.Enum):
 
 
 # ============================================
+# USER MODELS
+# ============================================
+
+class User(Base):
+    """User model for authentication"""
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    password_hash = Column(String(255), nullable=False)
+    name = Column(String(255), nullable=True)
+    company = Column(String(255), nullable=True)
+    tenant_id = Column(String(36), nullable=True)
+    is_active = Column(Boolean, default=True)
+    is_verified = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    last_login_at = Column(DateTime, nullable=True)
+
+    __table_args__ = (
+        Index("idx_user_email", "email"),
+        Index("idx_user_active", "is_active"),
+    )
+
+
+# ============================================
 # TENANT MODELS
 # ============================================
 

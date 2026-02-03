@@ -99,6 +99,22 @@ services:
     profiles:
       - monitoring
 
+  # Dashboard (Next.js Frontend)
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    container_name: unified-agent-dashboard
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=${API_BASE_URL:-http://localhost:8000}
+    depends_on:
+      - unified-agent
+    restart: unless-stopped
+    networks:
+      - unified-agent-network
+
 volumes:
   agent-data:
   redis-data:
