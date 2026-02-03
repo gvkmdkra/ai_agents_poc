@@ -4,13 +4,15 @@
 1. [System Overview](#system-overview)
 2. [Architecture Diagram](#architecture-diagram)
 3. [Component Details](#component-details)
-4. [Data Flow](#data-flow)
-5. [API Endpoints](#api-endpoints)
-6. [Database Schema](#database-schema)
-7. [Deployment Architecture](#deployment-architecture)
-8. [Security](#security)
-9. [Scalability](#scalability)
-10. [Configuration](#configuration)
+4. [Frontend Pages](#frontend-pages)
+5. [Data Flow](#data-flow)
+6. [API Endpoints](#api-endpoints)
+7. [Database Schema](#database-schema)
+8. [Deployment Architecture](#deployment-architecture)
+9. [Security](#security)
+10. [Scalability](#scalability)
+11. [Configuration](#configuration)
+12. [CI/CD Pipeline](#cicd-pipeline)
 
 ---
 
@@ -116,23 +118,27 @@ reapdat_website/
 ├── app/
 │   ├── page.tsx              # Homepage
 │   ├── voice-ai/page.tsx     # Voice AI demo page
+│   ├── dashboard/page.tsx    # Analytics dashboard
 │   └── layout.tsx            # Root layout
 ├── components/
 │   ├── voice-ai-demo.tsx     # Demo call interface
 │   ├── navbar.tsx            # Navigation
-│   └── ui/                   # UI components
+│   ├── footer.tsx            # Footer
+│   └── ui/                   # UI components (Button, Input)
 ├── lib/
-│   └── calling-agent-api.ts  # API client
+│   ├── calling-agent-api.ts  # API client
+│   └── utils.ts              # Utility functions
 ├── nginx/
 │   └── nginx.conf            # Nginx configuration
 └── out/                      # Static build output
 ```
 
 **How it works:**
-1. Next.js builds static HTML/JS/CSS files
+1. Next.js builds static HTML/JS/CSS files using `npm run build`
 2. Files are deployed to EC2 at `/home/ubuntu/poc/agents/website/out/`
 3. Nginx serves these static files for all non-API routes
 4. The `voice-ai-demo.tsx` component makes API calls to `/health` and `/api/v1/calls/initiate`
+5. The `dashboard/page.tsx` fetches analytics data and recent calls from API
 
 **API Client Configuration:**
 ```typescript
@@ -140,6 +146,13 @@ reapdat_website/
 const API_BASE_URL = process.env.NEXT_PUBLIC_CALLING_AGENT_API_URL || '';
 // Empty string means same-origin requests (nginx proxies to backend)
 ```
+
+**Pages:**
+| Route | File | Description |
+|-------|------|-------------|
+| `/` | `app/page.tsx` | Homepage with services overview |
+| `/voice-ai` | `app/voice-ai/page.tsx` | Voice AI demo with live call interface |
+| `/dashboard` | `app/dashboard/page.tsx` | Real-time analytics dashboard |
 
 ### 3.2 Backend API (FastAPI)
 
@@ -512,7 +525,104 @@ def batch_initiate_calls(phone_numbers: list, system_prompt: str = None):
     return tasks.apply_async()
 ```
 
-### 3.8 Nginx Configuration
+---
+
+## 4. Frontend Pages
+
+### 4.1 Homepage (`/`)
+
+**File:** `app/page.tsx`
+
+The main landing page showcasing Reapdat's services:
+- Hero section with value proposition
+- Services overview (Voice AI, Chat AI, etc.)
+- Features section
+- Industry examples (Real Estate, Legal, Hotel, Retail)
+- CTA sections
+
+### 4.2 Voice AI Demo Page (`/voice-ai`)
+
+**File:** `app/voice-ai/page.tsx`
+
+Interactive demo page for the Voice AI Calling Agent:
+- Product description and features
+- Live demo call interface (`VoiceAIDemo` component)
+- Real-time API health status indicator
+- Phone number input and call initiation
+- Call status display with live updates
+
+**VoiceAIDemo Component Flow:**
+```
+1. Component mounts → Check API health (/health)
+2. User enters phone number
+3. User clicks "Start Demo Call"
+4. POST /api/v1/calls/initiate
+5. Display call_id and status
+6. Call status: pending → initiating → ringing → in_progress → completed
+```
+
+### 4.3 Analytics Dashboard (`/dashboard`)
+
+**File:** `app/dashboard/page.tsx`
+
+Real-time analytics dashboard for monitoring call performance:
+
+**Key Metrics Cards:**
+- Total Calls (with trend indicator)
+- Completed Calls (with success rate %)
+- Active Calls (with live pulse indicator)
+- Average Duration (formatted as mm:ss)
+
+**Visualizations:**
+1. **Call Status Distribution** - Horizontal bar chart showing:
+   - Completed, Failed, In Progress, Ringing counts
+   - Percentage breakdown with animated progress bars
+
+2. **Sentiment Analysis** - SVG donut chart showing:
+   - Positive (green), Neutral (yellow), Negative (red)
+   - Center shows total analyzed calls
+
+3. **Recent Calls Table** - Paginated list showing:
+   - Phone number
+   - Direction (inbound/outbound with icons)
+   - Status (color-coded badges)
+   - Duration
+   - Sentiment (emoji icons)
+   - Timestamp
+
+**Data Fetching:**
+```typescript
+// Fetch analytics and recent calls in parallel
+const [analyticsRes, callsRes] = await Promise.all([
+    fetch(`${API_BASE_URL}/api/v1/calls/dashboard/analytics`),
+    fetch(`${API_BASE_URL}/api/v1/calls?limit=10`)
+]);
+```
+
+**Auto-Refresh:**
+- Dashboard auto-refreshes every 30 seconds
+- Manual refresh button available
+- Last updated timestamp displayed
+
+**Dashboard URL:** `https://reapdat.com/dashboard`
+
+### 4.4 Navigation
+
+**File:** `components/navbar.tsx`
+
+Navigation links:
+- Voice AI → `/voice-ai`
+- Dashboard → `/dashboard`
+- Services → `#services` (homepage anchor)
+- Platform → `#features` (homepage anchor)
+- Industries → `#use-cases` (homepage anchor)
+- Get Started button (CTA)
+
+Mobile-responsive hamburger menu for smaller screens.
+
+---
+
+### 4.5 Nginx Configuration
 
 **Location:** `reapdat_website/nginx/nginx.conf`
 
@@ -1038,9 +1148,11 @@ docker logs calling-agent-celery
 
 ### URLs
 - **Website:** https://reapdat.com
-- **Demo:** https://reapdat.com/voice-ai
+- **Voice AI Demo:** https://reapdat.com/voice-ai
+- **Analytics Dashboard:** https://reapdat.com/dashboard
 - **API Docs:** https://reapdat.com/docs
-- **Health:** https://reapdat.com/health
+- **Health Check:** https://reapdat.com/health
+- **API Stats:** https://reapdat.com/stats
 
 ### Repositories
 - **Backend:** https://github.com/gvkmdkra/ai_agents_poc
@@ -1054,5 +1166,160 @@ docker logs calling-agent-celery
 
 ---
 
-*Document Version: 1.0*
+## 12. CI/CD Pipeline
+
+### 12.1 Website Deployment (reapdat_website)
+
+**Workflow:** `.github/workflows/deploy.yml`
+
+**Triggers:**
+- Push to `develop` branch
+- Manual dispatch (workflow_dispatch)
+
+**Pipeline Steps:**
+```
+1. Checkout code
+2. Setup Node.js 20
+3. Install dependencies (npm ci)
+4. Build Next.js (npm run build) → outputs to /out
+5. Upload build artifact
+6. SSH to EC2 (15.156.116.91)
+7. Extract to /home/ubuntu/poc/agents/website/
+8. Copy nginx config to /etc/nginx/nginx.conf
+9. Test and reload nginx
+```
+
+**Deployment Diagram:**
+```
+GitHub (develop)
+       │
+       ▼ (push trigger)
+GitHub Actions Runner
+       │
+       ├── npm ci
+       ├── npm run build
+       │
+       ▼ (rsync over SSH)
+EC2 Instance
+       │
+       ├── /home/ubuntu/poc/agents/website/out/
+       └── nginx reload
+```
+
+### 12.2 Backend Deployment (calling_agent)
+
+**Workflow:** `.github/workflows/deploy-ec2.yml`
+
+**Triggers:**
+- Push to `calling_agent_by_claude_version1` or `main` branch
+- Changes in `calling_agent/**` path
+- Manual dispatch
+
+**Pipeline Steps:**
+```
+1. Checkout code
+2. Setup SSH key from secrets
+3. Create deployment directory on EC2
+4. rsync application files (excluding .env, venv, __pycache__)
+5. SSH to EC2:
+   - docker-compose down
+   - docker-compose build --no-cache
+   - docker-compose up -d
+6. Wait 30s for health check
+7. Verify /health endpoint
+8. Cleanup SSH key
+```
+
+**Docker Deployment Diagram:**
+```
+GitHub (calling_agent_by_claude_version1)
+       │
+       ▼ (push trigger)
+GitHub Actions Runner
+       │
+       ▼ (rsync over SSH)
+EC2 Instance
+       │
+       └── docker-compose.scalable.yml
+              │
+              ├── calling-agent (FastAPI)
+              ├── calling-agent-redis
+              └── calling-agent-celery
+```
+
+### 12.3 Environment Secrets
+
+**GitHub Secrets Required:**
+| Secret | Description |
+|--------|-------------|
+| `EC2_SSH_KEY` | SSH private key for EC2 access |
+| `EC2_HOST` | EC2 public IP (15.156.116.91) |
+| `HOSTINGER_VPS_SSH_KEY` | (Optional) For Hostinger deployment |
+
+### 12.4 Deployment URLs
+
+| Environment | URL | Branch |
+|-------------|-----|--------|
+| Production Website | https://reapdat.com | develop |
+| Production API | https://reapdat.com/api/v1 | calling_agent_by_claude_version1 |
+| API Subdomain | https://api.reapdat.com | calling_agent_by_claude_version1 |
+
+---
+
+## 13. End-to-End System Flow
+
+### Complete Request Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                            USER JOURNEY                                          │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+1. USER VISITS WEBSITE
+   Browser → DNS (reapdat.com) → EC2 (15.156.116.91:443)
+          → Nginx → Static Files (/home/ubuntu/poc/agents/website/out/)
+          → User sees Homepage
+
+2. USER NAVIGATES TO DASHBOARD
+   Browser → /dashboard → Static Page
+          → JavaScript fetches /api/v1/calls/dashboard/analytics
+          → Nginx proxies to Docker (localhost:8000)
+          → FastAPI returns JSON
+          → Dashboard renders charts
+
+3. USER INITIATES DEMO CALL
+   Browser → /voice-ai → Demo Page
+          → User enters phone number
+          → POST /api/v1/calls/initiate
+          → Nginx → Docker → FastAPI
+          → FastAPI creates Ultravox session
+          → FastAPI calls Twilio API
+          → Twilio calls recipient phone
+          → Audio streams: Phone ↔ Twilio ↔ Ultravox
+          → Webhooks update call status
+          → User sees "Call in Progress"
+
+4. CALL COMPLETES
+   → Ultravox generates transcript
+   → Ultravox generates summary
+   → FastAPI saves to Turso DB
+   → Dashboard shows updated stats
+```
+
+### Component Interaction Matrix
+
+| Component | Interacts With | Protocol | Purpose |
+|-----------|---------------|----------|---------|
+| Browser | Nginx | HTTPS | Serve pages, API calls |
+| Nginx | Docker | HTTP | Reverse proxy |
+| FastAPI | Twilio | HTTPS | Make/manage calls |
+| FastAPI | Ultravox | HTTPS/WSS | Voice AI sessions |
+| FastAPI | Turso | HTTPS | Database operations |
+| FastAPI | Redis | TCP | Caching, queuing |
+| Celery | Redis | TCP | Task queue |
+| Twilio | Ultravox | WSS | Audio streaming |
+
+---
+
+*Document Version: 2.0*
 *Last Updated: February 2, 2026*
