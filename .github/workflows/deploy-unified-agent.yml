@@ -62,9 +62,9 @@ jobs:
         run: |
           ssh -i ~/.ssh/ec2_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "command -v docker-compose || sudo curl -L 'https://github.com/docker/compose/releases/latest/download/docker-compose-Linux-x86_64' -o /usr/local/bin/docker-compose && sudo chmod +x /usr/local/bin/docker-compose"
 
-      - name: Stop existing containers
+      - name: Stop ALL existing containers (including old calling_agent)
         run: |
-          ssh -i ~/.ssh/ec2_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "cd /home/ubuntu/poc/agents/unified_agent && sudo docker-compose down || true"
+          ssh -i ~/.ssh/ec2_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "sudo docker stop \$(sudo docker ps -q) 2>/dev/null || true && sudo docker rm \$(sudo docker ps -aq) 2>/dev/null || true && cd /home/ubuntu/poc/agents/unified_agent && sudo docker-compose down 2>/dev/null || true && cd /home/ubuntu/poc/agents/calling_agent && sudo docker-compose down 2>/dev/null || true && sudo docker-compose -f docker-compose.scalable.yml down 2>/dev/null || true"
 
       - name: Build and start containers
         run: |
