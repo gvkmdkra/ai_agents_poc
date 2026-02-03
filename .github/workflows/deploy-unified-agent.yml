@@ -97,6 +97,49 @@ jobs:
               echo "WARNING: Health check may have failed. Checking logs..."
               sudo docker-compose logs --tail=50
             fi
+
+            # Configure Nginx if available
+            if command -v nginx &> /dev/null; then
+              echo "Configuring Nginx for domain routing..."
+              sudo tee /etc/nginx/sites-available/unified-agent > /dev/null << 'NGINXCONF'
+server {
+    listen 80;
+    server_name api.reapdat.com;
+
+    location / {
+        proxy_pass http://localhost:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+
+server {
+    listen 80;
+    server_name app.reapdat.com;
+
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+NGINXCONF
+              sudo ln -sf /etc/nginx/sites-available/unified-agent /etc/nginx/sites-enabled/
+              sudo nginx -t && sudo systemctl reload nginx
+              echo "Nginx configured for api.reapdat.com and app.reapdat.com"
+            fi
           ENDSSH
 
       - name: Verify deployment
@@ -104,6 +147,17 @@ jobs:
           echo "Checking application health..."
           sleep 5
           curl -f http://${{ env.EC2_HOST }}:8000/health || echo "Direct health check - may need security group update"
+          echo ""
+          echo "========================================="
+          echo "Deployment Complete!"
+          echo "========================================="
+          echo "API: http://${{ env.EC2_HOST }}:8000"
+          echo "Dashboard: http://${{ env.EC2_HOST }}:3000"
+          echo ""
+          echo "For production, configure DNS:"
+          echo "  api.reapdat.com -> ${{ env.EC2_HOST }}"
+          echo "  app.reapdat.com -> ${{ env.EC2_HOST }}"
+          echo "========================================="
 
       - name: Cleanup SSH key
         if: always()
