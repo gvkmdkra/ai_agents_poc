@@ -39,13 +39,22 @@ nslookup app.reapdat.com
 
 ## SSL Certificate Setup
 
-After DNS propagation, SSH into the EC2 instance and run:
+After DNS propagation (verify with `nslookup api.reapdat.com`), you have two options:
+
+### Option 1: Use GitHub Actions Workflow (Recommended)
+1. Go to the repository's **Actions** tab
+2. Select **Setup SSL Certificates** workflow
+3. Click **Run workflow**
+4. This will automatically obtain certificates and configure HTTPS
+
+### Option 2: Manual Setup
+SSH into the EC2 instance and run:
 
 ```bash
-sudo certbot --nginx -d api.reapdat.com -d app.reapdat.com --non-interactive --agree-tos --email admin@reapdat.com
+sudo certbot --nginx -d api.reapdat.com -d app.reapdat.com --non-interactive --agree-tos --email admin@reapdat.com --redirect
 ```
 
-This will automatically configure HTTPS for both domains.
+This will automatically configure HTTPS for both domains and redirect HTTP to HTTPS.
 
 ## Nginx Configuration
 
