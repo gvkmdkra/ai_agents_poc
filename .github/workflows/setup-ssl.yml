@@ -1,0 +1,50 @@
+name: Setup SSL Certificates
+
+on:
+  workflow_dispatch:
+
+env:
+  EC2_HOST: 15.156.116.91
+  EC2_USER: ubuntu
+
+jobs:
+  setup-ssl:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Setup SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/ec2_key.pem
+          chmod 600 ~/.ssh/ec2_key.pem
+          ssh-keyscan -H ${{ env.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Check DNS resolution
+        run: |
+          echo "Checking DNS for api.reapdat.com..."
+          nslookup api.reapdat.com || echo "DNS not yet configured for api.reapdat.com"
+          echo ""
+          echo "Checking DNS for app.reapdat.com..."
+          nslookup app.reapdat.com || echo "DNS not yet configured for app.reapdat.com"
+
+      - name: Install Certbot if needed
+        run: |
+          ssh -i ~/.ssh/ec2_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "command -v certbot || sudo apt-get update && sudo apt-get install -y certbot python3-certbot-nginx"
+
+      - name: Obtain SSL certificates
+        run: |
+          ssh -i ~/.ssh/ec2_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "sudo certbot --nginx -d api.reapdat.com -d app.reapdat.com --non-interactive --agree-tos --email admin@reapdat.com --redirect"
+
+      - name: Verify SSL setup
+        run: |
+          echo "Testing HTTPS endpoints..."
+          curl -sI https://api.reapdat.com/health || echo "API HTTPS not working yet"
+          curl -sI https://app.reapdat.com || echo "Dashboard HTTPS not working yet"
+
+      - name: Setup auto-renewal
+        run: |
+          ssh -i ~/.ssh/ec2_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "sudo systemctl enable certbot.timer && sudo systemctl start certbot.timer"
+
+      - name: Cleanup SSH key
+        if: always()
+        run: rm -f ~/.ssh/ec2_key.pem
