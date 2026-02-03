@@ -32,10 +32,7 @@ jobs:
 
       - name: Create deployment directory on EC2
         run: |
-          ssh -i ~/.ssh/ec2_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} << 'ENDSSH'
-            sudo mkdir -p /home/ubuntu/poc/agents/unified_agent
-            sudo chown -R ubuntu:ubuntu /home/ubuntu/poc
-          ENDSSH
+          ssh -i ~/.ssh/ec2_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "sudo mkdir -p /home/ubuntu/poc/agents/unified_agent && sudo chown -R ubuntu:ubuntu /home/ubuntu/poc"
 
       - name: Copy application files to EC2
         run: |
@@ -48,104 +45,45 @@ jobs:
             --exclude 'venv' \
             --exclude 'data' \
             --exclude 'logs' \
+            --exclude 'node_modules' \
+            --exclude '.next' \
             unified_agent/ \
             ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:${{ env.DEPLOY_PATH }}/
 
-      - name: Deploy with Docker Compose
+      - name: Setup environment file
         run: |
-          ssh -i ~/.ssh/ec2_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} << 'ENDSSH'
-            cd /home/ubuntu/poc/agents/unified_agent
+          ssh -i ~/.ssh/ec2_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "cd /home/ubuntu/poc/agents/unified_agent && if [ ! -f .env ]; then cp .env.example .env && echo 'Created .env from example'; fi"
 
-            # Check if .env exists, if not create from example
-            if [ ! -f .env ]; then
-              if [ -f .env.example ]; then
-                cp .env.example .env
-                echo "WARNING: Created .env from .env.example - please configure it!"
-              fi
-            fi
+      - name: Install Docker if needed
+        run: |
+          ssh -i ~/.ssh/ec2_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "command -v docker || (curl -fsSL https://get.docker.com | sudo sh && sudo usermod -aG docker ubuntu)"
 
-            # Install Docker if not present
-            if ! command -v docker &> /dev/null; then
-              echo "Installing Docker..."
-              curl -fsSL https://get.docker.com -o get-docker.sh
-              sudo sh get-docker.sh
-              sudo usermod -aG docker ubuntu
-              rm get-docker.sh
-            fi
+      - name: Install Docker Compose if needed
+        run: |
+          ssh -i ~/.ssh/ec2_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "command -v docker-compose || sudo curl -L 'https://github.com/docker/compose/releases/latest/download/docker-compose-Linux-x86_64' -o /usr/local/bin/docker-compose && sudo chmod +x /usr/local/bin/docker-compose"
 
-            # Install Docker Compose if not present
-            if ! command -v docker-compose &> /dev/null; then
-              echo "Installing Docker Compose..."
-              sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-              sudo chmod +x /usr/local/bin/docker-compose
-            fi
+      - name: Stop existing containers
+        run: |
+          ssh -i ~/.ssh/ec2_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "cd /home/ubuntu/poc/agents/unified_agent && sudo docker-compose down || true"
 
-            # Build and deploy
-            echo "Building and deploying Unified AI Agent..."
-            sudo docker-compose down || true
-            sudo docker-compose build --no-cache
-            sudo docker-compose up -d
+      - name: Build and start containers
+        run: |
+          ssh -i ~/.ssh/ec2_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "cd /home/ubuntu/poc/agents/unified_agent && sudo docker-compose build --no-cache && sudo docker-compose up -d"
 
-            # Wait for health check
-            echo "Waiting for application to start..."
-            sleep 30
+      - name: Wait for startup
+        run: sleep 45
 
-            # Check health
-            if curl -s http://localhost:8000/health | grep -q "healthy"; then
-              echo "Deployment successful! Unified AI Agent is healthy."
-            else
-              echo "WARNING: Health check may have failed. Checking logs..."
-              sudo docker-compose logs --tail=50
-            fi
+      - name: Health check
+        run: |
+          ssh -i ~/.ssh/ec2_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "curl -s http://localhost:8000/health | grep -q healthy && echo 'API is healthy!' || (echo 'API health check failed' && sudo docker-compose -f /home/ubuntu/poc/agents/unified_agent/docker-compose.yml logs --tail=50)"
 
-            # Configure Nginx if available
-            if command -v nginx &> /dev/null; then
-              echo "Configuring Nginx for domain routing..."
-              sudo tee /etc/nginx/sites-available/unified-agent > /dev/null << 'NGINXCONF'
-server {
-    listen 80;
-    server_name api.reapdat.com;
-
-    location / {
-        proxy_pass http://localhost:8000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_cache_bypass $http_upgrade;
-    }
-}
-
-server {
-    listen 80;
-    server_name app.reapdat.com;
-
-    location / {
-        proxy_pass http://localhost:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_cache_bypass $http_upgrade;
-    }
-}
-NGINXCONF
-              sudo ln -sf /etc/nginx/sites-available/unified-agent /etc/nginx/sites-enabled/
-              sudo nginx -t && sudo systemctl reload nginx
-              echo "Nginx configured for api.reapdat.com and app.reapdat.com"
-            fi
-          ENDSSH
+      - name: Configure Nginx
+        run: |
+          ssh -i ~/.ssh/ec2_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} 'command -v nginx && echo "server { listen 80; server_name api.reapdat.com; location / { proxy_pass http://localhost:8000; proxy_http_version 1.1; proxy_set_header Upgrade \$http_upgrade; proxy_set_header Connection upgrade; proxy_set_header Host \$host; proxy_set_header X-Real-IP \$remote_addr; proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto \$scheme; } } server { listen 80; server_name app.reapdat.com; location / { proxy_pass http://localhost:3000; proxy_http_version 1.1; proxy_set_header Upgrade \$http_upgrade; proxy_set_header Connection upgrade; proxy_set_header Host \$host; proxy_set_header X-Real-IP \$remote_addr; proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto \$scheme; } }" | sudo tee /etc/nginx/sites-available/unified-agent && sudo ln -sf /etc/nginx/sites-available/unified-agent /etc/nginx/sites-enabled/ && sudo nginx -t && sudo systemctl reload nginx || echo "Nginx not installed, skipping"'
 
       - name: Verify deployment
         run: |
           echo "Checking application health..."
-          sleep 5
           curl -f http://${{ env.EC2_HOST }}:8000/health || echo "Direct health check - may need security group update"
           echo ""
           echo "========================================="
