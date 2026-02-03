@@ -1,0 +1,63 @@
+name: Diagnose EC2 Deployment
+
+on:
+  workflow_dispatch:
+
+env:
+  EC2_HOST: 15.156.116.91
+  EC2_USER: ubuntu
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Setup SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/ec2_key.pem
+          chmod 600 ~/.ssh/ec2_key.pem
+          ssh-keyscan -H ${{ env.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Check Docker containers
+        run: |
+          echo "=== Docker Containers ==="
+          ssh -i ~/.ssh/ec2_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "sudo docker ps -a"
+
+      - name: Check Docker logs for unified-agent
+        run: |
+          echo "=== Unified Agent Logs ==="
+          ssh -i ~/.ssh/ec2_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "sudo docker logs unified-ai-agent --tail=100 2>&1 || echo 'Container not found'"
+
+      - name: Check Docker logs for dashboard
+        run: |
+          echo "=== Dashboard Logs ==="
+          ssh -i ~/.ssh/ec2_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "sudo docker logs unified-agent-dashboard --tail=50 2>&1 || echo 'Container not found'"
+
+      - name: Check Nginx config
+        run: |
+          echo "=== Nginx Sites Enabled ==="
+          ssh -i ~/.ssh/ec2_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "ls -la /etc/nginx/sites-enabled/"
+          echo "=== Unified Agent Nginx Config ==="
+          ssh -i ~/.ssh/ec2_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "cat /etc/nginx/sites-enabled/unified-agent 2>/dev/null || echo 'Config not found'"
+
+      - name: Check ports
+        run: |
+          echo "=== Listening Ports ==="
+          ssh -i ~/.ssh/ec2_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "sudo netstat -tlnp | grep -E ':(80|443|3000|8000)'"
+
+      - name: Test local endpoints
+        run: |
+          echo "=== Local Health Check ==="
+          ssh -i ~/.ssh/ec2_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "curl -s http://localhost:8000/health || echo 'Port 8000 not responding'"
+          echo "=== Local Dashboard Check ==="
+          ssh -i ~/.ssh/ec2_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "curl -s http://localhost:3000 | head -5 || echo 'Port 3000 not responding'"
+
+      - name: Check .env file
+        run: |
+          echo "=== Environment File Check ==="
+          ssh -i ~/.ssh/ec2_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "cd /home/ubuntu/poc/agents/unified_agent && ls -la .env && head -5 .env | grep -v KEY | grep -v SECRET || echo '.env not found'"
+
+      - name: Cleanup SSH key
+        if: always()
+        run: rm -f ~/.ssh/ec2_key.pem
