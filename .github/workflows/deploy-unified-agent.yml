@@ -52,7 +52,7 @@ jobs:
 
       - name: Setup environment file
         run: |
-          ssh -i ~/.ssh/ec2_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "cd /home/ubuntu/poc/agents/unified_agent && if [ ! -f .env ]; then cp .env.example .env && echo 'Created .env from example'; fi"
+          ssh -i ~/.ssh/ec2_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "cd /home/ubuntu/poc/agents/unified_agent && cp .env.example .env && sed -i 's/DATABASE_TYPE=turso/DATABASE_TYPE=sqlite/g' .env && echo 'Created .env with SQLite database'"
 
       - name: Install Docker if needed
         run: |
